@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+/* 테마는 어둡게 고정 (2026-10-04). dark: 스타일을 운영체제 설정 대신 <html class="dark"> 로 켠다.
+   밝은 스타일은 코드에 남겨 둔다 — 나중에 설정(밝게/어둡게/시스템)을 붙이려면 이 class 만 바꾸면 된다 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic',
+    'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+/* 한국어는 단어 중간에서 줄을 바꾸지 않는다 (예: "에이전/트") */
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+html,
+body {
+  @apply bg-zinc-50 text-zinc-900 dark:bg-[#0b0d12] dark:text-zinc-100;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgb(248 113 113 / 0.45); }
+  70% { box-shadow: 0 0 0 8px rgb(248 113 113 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(248 113 113 / 0); }
+}
+.pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+/* 실행 중 카드의 상태 아이콘: BITL 고리가 천천히 돈다 (SessionCard StatusIcon) */
+@keyframes bitl-spin {
+  to { transform: rotate(360deg); }
+}
+.bitl-spin {
+  transform-origin: 32px 32px;
+  animation: bitl-spin 1.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bitl-spin { animation: none; }
+}
+
+/* 누를 수 있는 버튼은 손 모양 (Tailwind 4 기본값은 화살표) */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}

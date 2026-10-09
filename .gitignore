@@ -1,0 +1,23 @@
+node_modules/
+dist/
+*.log
+.claude/settings.local.json.bak
+.claude/settings.local.json
+.claude/settings.json
+
+# 개인 덤프는 커밋하지 않는다. 익명화 샘플(*-sample.jsonl)만 커밋
+packages/shared/test/fixtures/*.jsonl
+!packages/shared/test/fixtures/*-sample.jsonl
+.tmp-e2e/
+
+# 배포 비밀값·산출물
+deploy/.env
+deploy/*.pem
+deploy/*.tar.gz
+
+# npm 패키지(@usebitl/cli) 빌드 결과
+packages/cli/npm/adapters/
+*.tgz
+
+# 내보낸 기록 (커밋하지 않음)
+.bitl-export

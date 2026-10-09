@@ -1,0 +1,39 @@
+{
+  "name": "@usebitl/cli",
+  "version": "0.1.4",
+  "description": "BITL CLI — connect Claude Code, Codex and Antigravity to usebitl.com and stay in the loop of every agent you run",
+  "type": "module",
+  "bin": {
+    "bitl": "bin/bitl.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "adapters",
+    "README.md"
+  ],
+  "scripts": {
+    "prepack": "node build.mjs",
+    "postinstall": "node bin/bitl.mjs __sync"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "homepage": "https://usebitl.com",
+  "bugs": {
+    "email": "support@usebitl.com"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "antigravity",
+    "ai-agents",
+    "hooks",
+    "dashboard",
+    "notifications"
+  ],
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "public"
+  }
+}

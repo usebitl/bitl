@@ -1,0 +1,21 @@
+{
+  "name": "bitl",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bitl": "tsx packages/cli/src/index.ts",
+    "start": "pnpm build && tsx packages/cli/src/index.ts start",
+    "dev:server": "pnpm --filter @bitl/server dev",
+    "dev:web": "pnpm --filter @bitl/web dev",
+    "build": "pnpm --filter @bitl/adapters build && pnpm --filter @bitl/web build",
+    "test": "pnpm -r test",
+    "test:dumps": "pnpm --filter @bitl/shared test:dumps",
+    "make-sample": "pnpm --filter @bitl/shared make-sample",
+    "typecheck": "pnpm -r typecheck",
+    "postinstall": "pnpm --filter @bitl/adapters build"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  },
+  "license": "AGPL-3.0-only"
+}

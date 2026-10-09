@@ -1,0 +1,75 @@
+import type { ReactNode } from 'react';
+
+/**
+ * 선 아이콘 (24 칸, 선 1.7, 글자색). 이모지는 운영체제마다 모양·색이 달라 화면에서 튀어서 직접 그린다.
+ * 빨간색은 휴대폰 아이콘의 알림 점 하나 — BITL 의 "내 차례" 신호.
+ */
+function Icon({ children, className = 'size-[18px]' }: { children: ReactNode; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  );
+}
+
+type P = { className?: string };
+
+/** 에이전트 연결: 노트북 + 터미널 프롬프트 (소개 페이지 1단계와 같은 결) */
+export const ConnectIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M1.5 19.5h21M7.5 8.5l2.5 2-2.5 2M12 12.5h4" />
+  </Icon>
+);
+
+export const BellIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
+  </Icon>
+);
+
+/** 휴대폰 + 빨간 알림 점 (소개 페이지 "어디서나 보고, 알림 받기"와 같은 모양) */
+export const PhoneIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+    <path d="M10.5 18.5h3" />
+    <circle cx="17" cy="4" r="2.6" className="fill-red-500 stroke-none" />
+  </Icon>
+);
+
+export const CardIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="2.5" y="5" width="19" height="14" rx="2" />
+    <path d="M2.5 10h19M6.5 15h4" />
+  </Icon>
+);
+
+export const GlobeIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+  </Icon>
+);
+
+/** 새 소식: 반짝임 */
+export const NewsIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
+    <path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+  </Icon>
+);
+
+/** 내려받기 (업데이트) */
+export const UpdateIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Icon>
+);
+
+export const SignOutIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+    <path d="M10 8l-4 4 4 4M6 12h10" />
+  </Icon>
+);
