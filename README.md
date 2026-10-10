@@ -97,7 +97,7 @@ pnpm bitl install claude
 
 ## On your phone
 
-The local edition stays on one PC. [usebitl.com](https://usebitl.com) is the hosted version. It adds your phone, push notifications when an agent is waiting, approving permission prompts remotely, and several PCs on one account, with the same end-to-end encryption.
+The local edition stays on one PC. [usebitl.com](https://usebitl.com) is the hosted version. It adds your phone, push notifications when an agent is waiting, and several PCs on one account, with the same end-to-end encryption.
 
 The local edition is free and open source (AGPL-3.0). usebitl.com is free during beta; paid plans will be announced at least 30 days ahead.
 
@@ -128,6 +128,6 @@ npx @usebitl/cli@latest install claude   # 다른 터미널에서: Claude Code h
 - 새 버전이 나오면 보드와 `bitl` 명령에 한 줄로 알립니다. 하루 한 번 npm 레지스트리에 최신 버전만 묻고, 다른 것은 보내지 않습니다 (`BITL_NO_UPDATE_CHECK=1` 로 끄기).
 - hook 은 에이전트를 막거나 느리게 하지 않습니다. 서버가 꺼져 있으면 이벤트를 `~/.bitl/queue.jsonl` 에 쌓고 바로 돌아갑니다.
 - 질문·답변·명령은 PC 에서 암호화됩니다. 서버는 평문을 받지 않고, 키(`~/.bitl/key`)가 있는 브라우저만 내용을 봅니다.
-- 휴대폰·푸시 알림·원격 승인·여러 PC 는 [usebitl.com](https://usebitl.com) 에서 쓸 수 있습니다 (베타 기간 무료, 유료 전환은 적어도 30일 전에 알립니다).
+- 휴대폰·푸시 알림·여러 PC 는 [usebitl.com](https://usebitl.com) 에서 쓸 수 있습니다 (베타 기간 무료, 유료 전환은 적어도 30일 전에 알립니다).
 
 라이선스는 [GNU AGPL-3.0](LICENSE) 입니다. 고친 버전을 네트워크 서비스로 운영하면 그 이용자에게 소스를 제공해야 합니다. "BITL" 이름과 로고는 usebitl.com 서비스를 가리키므로, 배포하는 포크에는 다른 이름과 로고를 써 주세요.
