@@ -118,7 +118,8 @@ export function runServer({ store, services, app, where, info = [], sweep, prune
     console.log(`bitl-server listening on http://${HOST}:${i.port}`);
     console.log(`  db: ${where}`);
     for (const line of info) console.log(`  ${line}`);
-    console.log(`  push: ${services.pushing ? '켜짐 (VAPID)' : '꺼짐 (BITL_VAPID_PUBLIC_KEY 없음)'}`);
+    // 로컬판은 웹 푸시를 쓰지 않으므로 켜졌을 때만 알린다
+    if (services.pushing) console.log('  push: on (VAPID)');
     if (store.backupPath) {
       console.log(`  db: 옛 형식(내용 평문) DB 를 옮겨 두고 새로 시작합니다 → ${store.backupPath}`);
       console.log('      옛 기록이 필요 없으면 이 파일을 지우세요 (평문이 들어 있습니다).');

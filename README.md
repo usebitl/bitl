@@ -20,7 +20,7 @@ Then use Claude Code in any folder and its sessions appear on the board, includi
 
 | Command | |
 |---|---|
-| `pnpm bitl install claude [--project <dir>]` | Claude Code hooks. `--project` writes only that folder's `.claude/settings.json` |
+| `pnpm bitl install claude` | Claude Code hooks (`~/.claude/settings.json`) |
 | `pnpm bitl install codex` | Codex hooks (`~/.codex/config.toml`). Trust them once in Codex with `/hooks` |
 | `pnpm bitl install antigravity` | Antigravity hooks (`~/.gemini/config/hooks.json`, CLI and IDE) |
 | `pnpm bitl uninstall <agent>` | Removes only what BITL added |

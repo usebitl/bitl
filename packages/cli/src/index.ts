@@ -101,6 +101,8 @@ const boardUrl = (override?: string) =>
 /** 클라우드 계정에 연결했으면 그 계정 키, 아니면 로컬 키 */
 const masterForPair = () => (readCloudConfig() ? readFileSync(cloudKeyPath(), 'utf8').trim() : loadOrCreateMasterKey());
 const pairUrl = (base?: string) => `${boardUrl(base)}/#key=${masterForPair()}`;
+/** bitl start 가 띄운 로컬 서버용 링크 — 클라우드에 연결한 PC 라도 로컬 주소·로컬 키 (계정 키를 화면에 찍지 않는다) */
+const localPairUrl = () => `${serverUrl().replace(/\/+$/, '')}/#key=${loadOrCreateMasterKey()}`;
 
 function pair(args: string[]) {
   const base = option(args, '--url');
@@ -200,8 +202,7 @@ async function main(argv: string[]) {
       if (CLOUD_ONLY) throw new Error(t('err.noStart'));
       const { startServer } = await import('@bitl/server');
       await startServer();
-      loadOrCreateMasterKey();
-      console.log(t('start.pair', { url: pairUrl() }));
+      console.log(t('start.pair', { url: localPairUrl() }));
       return;
     }
     case 'install':
