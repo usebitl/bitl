@@ -321,6 +321,8 @@ export const ko = {
   'card.tools': "도구 {n}",
   'card.locked': "🔒 이 기기의 키로 열 수 없음",
   'card.untitled': "(제목 없음)",
+  'update.npx': "bitl {latest} 이 나왔습니다 (지금 {current}). 서버를 끄고(Ctrl+C) 이 명령으로 다시 시작하세요.",
+  'update.global': "bitl {latest} 이 나왔습니다 (지금 {current}). 서버를 끄고(Ctrl+C) 이 명령으로 업데이트한 뒤 bitl start 로 다시 시작하세요.",
   'card.subagents': "서브에이전트 {n}",
   'detail.sessionStart': "세션 시작",
   'detail.sessionEnd': "세션 종료",

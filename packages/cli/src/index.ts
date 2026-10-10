@@ -236,8 +236,8 @@ main(process.argv.slice(2))
     process.exitCode = 1;
   })
   .then(async () => {
-    // New-version notice only for commands a person typed (not bitl start, a long-running server). Goes to stderr so it doesn't pollute JSON output etc.
-    if (process.argv[2] === 'start') return;
+    // New-version notice for commands a person typed (bitl start too: printed once the server is up; the board shows it as well).
+    // Goes to stderr so it doesn't pollute JSON output etc.
     const notice = await updateNotice();
     if (notice) console.error(`\n${notice}`);
   });

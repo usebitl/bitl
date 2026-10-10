@@ -30,13 +30,15 @@ This is the **local edition**. It runs on your PC (`127.0.0.1` only), needs no a
 Requires Node.js 22.5 or later.
 
 ```sh
-npx @usebitl/cli start            # starts the board; open the "Connect a browser" link it prints
-npx @usebitl/cli install claude   # in another terminal: add Claude Code hooks (a backup is made)
+npx @usebitl/cli@latest start            # starts the board; open the "Connect a browser" link it prints
+npx @usebitl/cli@latest install claude   # in another terminal: add Claude Code hooks (a backup is made)
 ```
 
 Now use Claude Code as usual, in any folder. Its sessions appear on the board.
 
-To keep the `bitl` command around, use `npm install -g @usebitl/cli` and then run `bitl start`.
+`@latest` makes npx fetch the newest version even if an older one is cached or installed. To keep the `bitl` command around, use `npm install -g @usebitl/cli` and then run `bitl start`.
+
+When a new version is out, the board and `bitl` commands show a one-line notice. To check, BITL asks the npm registry for the latest version once a day; nothing else is sent. Turn it off with `BITL_NO_UPDATE_CHECK=1`.
 
 | Agent | Install | What BITL sees |
 |---|---|---|
@@ -114,10 +116,11 @@ The local edition is free and open source (AGPL-3.0). usebitl.com is free during
 이 저장소는 **로컬판**입니다. 내 PC 에서만(`127.0.0.1`) 돌고, 계정이 필요 없으며, 모든 기록을 PC 의 SQLite 파일에 둡니다.
 
 ```sh
-npx @usebitl/cli start            # 보드 시작 → 출력되는 "브라우저 연결" 링크를 연다 (Node.js 22.5 이상)
-npx @usebitl/cli install claude   # 다른 터미널에서: Claude Code hook 등록 (백업 생성)
+npx @usebitl/cli@latest start            # 보드 시작 → 출력되는 "브라우저 연결" 링크를 연다 (Node.js 22.5 이상)
+npx @usebitl/cli@latest install claude   # 다른 터미널에서: Claude Code hook 등록 (백업 생성)
 ```
 
+- 새 버전이 나오면 보드와 `bitl` 명령에 한 줄로 알립니다. 하루 한 번 npm 레지스트리에 최신 버전만 묻고, 다른 것은 보내지 않습니다 (`BITL_NO_UPDATE_CHECK=1` 로 끄기).
 - hook 은 에이전트를 막거나 느리게 하지 않습니다. 서버가 꺼져 있으면 이벤트를 `~/.bitl/queue.jsonl` 에 쌓고 바로 돌아갑니다.
 - 질문·답변·명령은 PC 에서 암호화됩니다. 서버는 평문을 받지 않고, 키(`~/.bitl/key`)가 있는 브라우저만 내용을 봅니다.
 - 휴대폰·푸시 알림·원격 승인·여러 PC 는 [usebitl.com](https://usebitl.com) 에서 쓸 수 있습니다 (베타 기간 무료, 유료 전환은 적어도 30일 전에 알립니다).

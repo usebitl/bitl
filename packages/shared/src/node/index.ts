@@ -12,6 +12,7 @@ export * from './approve.js';
 export * from './cloud.js';
 export * from './enrich.js';
 export * from './keys.js';
+export * from './update-check.js';
 
 /** Raw input (hook payload/status report) → normalize → enrich → minimize and seal. null if it can't be parsed */
 export async function prepareRaw(rec: RawRecord, opts: { keys?: ContentKeys; home?: string; enrich?: boolean } = {}): Promise<WireRecord | null> {

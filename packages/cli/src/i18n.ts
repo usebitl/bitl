@@ -6,7 +6,7 @@ export type Lang = 'ko' | 'en';
 
 const ko = {
   'usage.title': 'bitl — AI 에이전트 작업 현황판 (https://usebitl.com)',
-  'update.available': '↑ bitl {latest} 가 나왔습니다 (지금 {current}) — npm i -g @usebitl/cli',
+  'update.available': '↑ bitl {latest} 가 나왔습니다 (지금 {current}) — {command}',
   'update.changelog': '  바뀐 점: https://usebitl.com/changelog',
   'usage.start': '서버 시작 (http://127.0.0.1:7777)',
   'usage.status': '현재 세션 요약 (이 PC 의 키로 복호화)',
@@ -88,7 +88,7 @@ export type MessageKey = keyof typeof ko;
 
 const en: Record<MessageKey, string> = {
   'usage.title': 'bitl — all your AI coding agents in one place (https://usebitl.com)',
-  'update.available': '↑ bitl {latest} is available (you have {current}) — npm i -g @usebitl/cli',
+  'update.available': '↑ bitl {latest} is available (you have {current}) — {command}',
   'update.changelog': '  What changed: https://usebitl.com/changelog',
   'usage.start': 'Start the server (http://127.0.0.1:7777)',
   'usage.status': 'Summary of current sessions (decrypted with this PC’s key)',

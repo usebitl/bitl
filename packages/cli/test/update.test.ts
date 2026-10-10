@@ -10,6 +10,7 @@ beforeEach(() => {
   vi.stubEnv('BITL_HOME', home);
   vi.stubEnv('BITL_LANG', 'en');
   vi.stubEnv('BITL_NO_UPDATE_CHECK', '');
+  vi.stubEnv('BITL_INSTALL', '');
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -51,6 +52,13 @@ describe('new-version notice', () => {
     vi.stubGlobal('fetch', f);
     expect(await updateNotice('0.1.4')).toContain('0.2.0');
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('suggests the command matching how bitl was installed', async () => {
+    vi.stubGlobal('fetch', registry('0.2.0'));
+    expect(await updateNotice('0.1.4')).toContain('npm i -g @usebitl/cli');
+    vi.stubEnv('BITL_INSTALL', 'npx');
+    expect(await updateNotice('0.1.4')).toContain('npx @usebitl/cli@latest start');
   });
 
   it('is disabled by BITL_NO_UPDATE_CHECK=1', async () => {

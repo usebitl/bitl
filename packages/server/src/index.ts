@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
+import { type CliUpdate, checkCliUpdate } from '@bitl/shared/node';
 import { type AccessPolicy, allowAll } from './access.js';
 import { closeApprovalsOnResume } from './approvals-api.js';
 import { createApp, ingestRecord } from './app.js';
@@ -15,6 +16,7 @@ export const PORT = Number(process.env.BITL_PORT ?? 7777);
 const HOST = process.env.BITL_HOST ?? '127.0.0.1';
 const SWEEP_INTERVAL_MS = 30_000;
 const PRUNE_INTERVAL_MS = 60 * 60_000;
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 /** Retention for raw events (timeline). Session and turn summaries are kept */
 const EVENT_RETENTION_DAYS = Number(process.env.BITL_EVENT_RETENTION_DAYS ?? 14);
 export const env = (name: string) => process.env[name]?.trim() || undefined;
@@ -141,12 +143,29 @@ export function runServer({ store, services, app, where, info = [], sweep, prune
 }
 
 /** Local mode: SQLite on this PC ($BITL_HOME/bitl.db), no login, 127.0.0.1 only */
+/**
+ * Newer @usebitl/cli for the local board's banner (/api/me .update). Checked at start, then every few hours
+ * (the registry itself is asked at most once a day — see checkCliUpdate). Never delays the server start.
+ */
+function watchCliUpdate(): () => CliUpdate | undefined {
+  let update: CliUpdate | undefined;
+  const refresh = () =>
+    checkCliUpdate().then(
+      (u) => (update = u),
+      () => {},
+    );
+  void refresh();
+  setInterval(refresh, UPDATE_CHECK_INTERVAL_MS).unref();
+  return () => update;
+}
+
 export async function startServer() {
   const file = join(BITL_HOME, 'bitl.db');
   const store = openSqliteStore(file);
   const drained = await drainQueue(store);
   const services = coreServices(store);
-  const app = createApp({ store, webDist: WEB_DIST, ...services.app });
+  const update = watchCliUpdate();
+  const app = createApp({ store, webDist: WEB_DIST, ...services.app, extension: { me: () => ({ mode: 'local', update: update() }) } });
   runServer({ store, services, app, where: file, info: drained ? [`queue: processed ${drained} pending events`] : [] });
 }
 

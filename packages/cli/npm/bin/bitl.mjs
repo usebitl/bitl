@@ -5,7 +5,7 @@
 //   node bin/bitl.mjs __sync  — copy only (npm postinstall). A failure does not block the install
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const syncOnly = process.argv[2] === '__sync';
@@ -28,6 +28,8 @@ try {
 if (syncOnly) process.exit(0);
 
 process.env.BITL_ADAPTER_DIR = dir;
+// Run via npx (from the npm cache's _npx folder): the update notice suggests npx @usebitl/cli@latest instead of npm i -g
+if (fileURLToPath(import.meta.url).includes(`${sep}_npx${sep}`)) process.env.BITL_INSTALL = 'npx';
 // Web UI that bitl start serves (built into the package)
 process.env.BITL_WEB_DIST ??= fileURLToPath(new URL('../web/', import.meta.url));
 await import('../dist/cli.mjs');

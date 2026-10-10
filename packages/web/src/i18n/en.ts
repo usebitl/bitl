@@ -304,6 +304,8 @@ export const en: Record<MessageKey, string> = {
   'card.tools': "{n} tool{s}",
   'card.locked': "🔒 Can't be opened with this device's key",
   'card.untitled': "(untitled)",
+  'update.npx': "bitl {latest} is out (you have {current}). Stop the server (Ctrl+C) and start it again with this command.",
+  'update.global': "bitl {latest} is out (you have {current}). Stop the server (Ctrl+C), update with this command, then run bitl start again.",
   'card.subagents': "{n} subagent{s}",
   'detail.sessionStart': "Session started",
   'detail.sessionEnd': "Session ended",

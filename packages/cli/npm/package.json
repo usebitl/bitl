@@ -1,6 +1,6 @@
 {
   "name": "@usebitl/cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "BITL — see which of your AI coding agents (Claude Code, Codex, Antigravity) are waiting for you. Local board or usebitl.com",
   "type": "module",
   "bin": {
