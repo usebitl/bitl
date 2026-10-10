@@ -20,13 +20,18 @@ rmSync(here('adapters'), { recursive: true, force: true });
 rmSync(here('web'), { recursive: true, force: true });
 
 await build({
-  entryPoints: [here('../src/index.ts')],
-  outfile: here('dist/cli.mjs'),
+  entryPoints: { cli: here('../src/index.ts') },
+  outdir: here('dist'),
+  outExtension: { '.js': '.mjs' },
+  // The local server (bitl start) is bundled too, but in its own chunk loaded only by bitl start:
+  // it imports node:sqlite (Node 22.5+), and every other command must keep working on Node 20
+  splitting: true,
+  chunkNames: 'chunks/[name]-[hash]',
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node20',
-  // The local server (bitl start) is bundled too; its web UI is built into web/ below
+  // Its web UI is built into web/ below
   define: {
     'process.env.BITL_NPM_BUILD': '"1"',
     'process.env.BITL_DEFAULT_URL': JSON.stringify(DEFAULT_URL),

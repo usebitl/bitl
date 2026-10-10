@@ -202,6 +202,12 @@ async function main(argv: string[]) {
       // The local server stores data with node:sqlite (Node 22.5+); other commands work on older Node
       const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
       if (major < 22 || (major === 22 && minor < 5)) throw new Error(t('err.nodeSqlite', { version: process.version }));
+      // Node prints "SQLite is an experimental feature" on first use — reads like an error on a first run. Hide only that one
+      const emitWarning = process.emitWarning.bind(process);
+      process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+        if (String(typeof warning === 'string' ? warning : warning.message).startsWith('SQLite is an experimental feature')) return;
+        (emitWarning as (...a: unknown[]) => void)(warning, ...rest);
+      }) as typeof process.emitWarning;
       const { startServer } = await import('@bitl/server');
       await startServer();
       console.log(t('start.pair', { url: localPairUrl() }));
