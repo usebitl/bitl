@@ -2,18 +2,18 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from './i18n';
 
 /**
- * 홈 화면 앱(PWA)과 "나를 기다림" 알림.
- * 서비스 워커는 sw/sw.ts (빌드하면 /sw.js). 개발 서버(vite dev)에서는 등록하지 않는다.
+ * Home screen app (PWA) and "waiting for you" notifications.
+ * The service worker is sw/sw.ts (built to /sw.js). Not registered on the dev server (vite dev).
  */
 
 export function registerServiceWorker() {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('서비스 워커 등록 실패:', err));
+    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('Service worker registration failed:', err));
   });
 }
 
-/** 알림을 누르면 열린 앱에 카드 키를 보낸다 → 그 카드의 상세를 연다 */
+/** Clicking a notification sends the card key to the open app → it opens that card's detail */
 export function useOpenFromNotification(open: (key: string) => void) {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -26,13 +26,13 @@ export function useOpenFromNotification(open: (key: string) => void) {
   }, [open]);
 }
 
-/** 홈 화면 아이콘의 숫자 (지원하는 곳만: 설치된 앱) */
+/** Number on the home screen icon (where supported: installed apps) */
 export function setAppBadge(n: number) {
   const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
   (n > 0 ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {});
 }
 
-// ── 설치 ────────────────────────────────────────────────────────
+// ── Install ────────────────────────────────────────────────────────
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -43,7 +43,7 @@ let deferred: BeforeInstallPromptEvent | null = null;
 const installListeners = new Set<() => void>();
 const emitInstall = () => installListeners.forEach((fn) => fn());
 window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault(); // 브라우저 기본 배너 대신 "앱 설치" 버튼으로
+  e.preventDefault(); // use our "Install app" button instead of the browser's default banner
   deferred = e as BeforeInstallPromptEvent;
   emitInstall();
 });
@@ -55,10 +55,10 @@ window.addEventListener('appinstalled', () => {
 export const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-/** iPhone·iPad (iPadOS 는 Mac 으로 보이므로 터치로 구분) */
+/** iPhone/iPad (iPadOS reports as Mac, so detect by touch) */
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-/** 브라우저가 설치 창을 띄울 수 있을 때만 함수 (Chrome·Edge·Android). iOS 는 공유 → 홈 화면에 추가 */
+/** A function only when the browser can show an install prompt (Chrome, Edge, Android). On iOS: Share → Add to Home Screen */
 export function useInstallPrompt(): (() => Promise<void>) | null {
   const can = useSyncExternalStore(
     (fn) => {
@@ -78,11 +78,11 @@ export function useInstallPrompt(): (() => Promise<void>) | null {
   };
 }
 
-// ── 알림 (웹 푸시) ───────────────────────────────────────────────
+// ── Notifications (web push) ───────────────────────────────────────
 
 export type PushState =
   | { kind: 'loading' }
-  /** 이 브라우저·서버에서 쓸 수 없음 — why 로 안내 */
+  /** Not available in this browser/server — explained by why */
   | { kind: 'unsupported'; why: 'browser' | 'ios-install' | 'server' | 'insecure' }
   | { kind: 'denied' }
   | { kind: 'off' }
@@ -105,27 +105,27 @@ const post = (path: string, body: unknown) =>
 async function readState(): Promise<PushState> {
   if (!window.isSecureContext) return { kind: 'unsupported', why: 'insecure' };
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-  // iOS 는 홈 화면에 추가한 앱에서만 알림을 받는다 (iOS 16.4+)
+  // iOS only delivers notifications to apps added to the home screen (iOS 16.4+)
   if (!supported) return { kind: 'unsupported', why: isIos() && !isStandalone() ? 'ios-install' : 'browser' };
   if (!(await serverKey())) return { kind: 'unsupported', why: 'server' };
   if (Notification.permission === 'denied') return { kind: 'denied' };
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
   if (!sub) return { kind: 'off' };
-  // 브라우저에는 구독이 있어도 서버가 지웠을 수 있다 (다른 계정으로 구독, 오래 실패)
+  // the browser may have a subscription the server has dropped (subscribed under another account, repeated failures)
   const res = await post('/api/push/status', { endpoint: sub.endpoint }).catch(() => null);
   const subscribed = res?.ok ? ((await res.json()) as { subscribed: boolean }).subscribed : false;
   return subscribed ? { kind: 'on' } : { kind: 'off' };
 }
 
-/** 이 기기에서 알림 받기 켜기. 실패하면 이유를 던진다 */
+/** Turns on notifications on this device. Throws the reason on failure */
 async function enable(): Promise<void> {
   const key = await serverKey();
   if (!key) throw new Error(t('err.pushNoKey'));
   if ((await Notification.requestPermission()) !== 'granted') throw new Error(t('err.pushDenied'));
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
-  // 서버 키가 바뀌었으면 새로 구독해야 한다
+  // if the server key changed, we must resubscribe
   const same = sub?.options.applicationServerKey && new Uint8Array(sub.options.applicationServerKey).toString() === b64urlToBytes(key).toString();
   if (sub && !same) {
     await sub.unsubscribe().catch(() => {});

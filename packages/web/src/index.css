@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
-/* 테마는 어둡게 고정 (2026-10-04). dark: 스타일을 운영체제 설정 대신 <html class="dark"> 로 켠다.
-   밝은 스타일은 코드에 남겨 둔다 — 나중에 설정(밝게/어둡게/시스템)을 붙이려면 이 class 만 바꾸면 된다 */
+/* Theme fixed to dark (2026-10-04). dark: styles are enabled by <html class="dark"> instead of the OS setting.
+   Light styles stay in the code — to add a setting (light/dark/system) later, just toggle this class */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -14,7 +14,7 @@
   color-scheme: dark;
 }
 
-/* 한국어는 단어 중간에서 줄을 바꾸지 않는다 (예: "에이전/트") */
+/* Don't break Korean lines mid-word (e.g. "에이전/트") */
 :lang(ko) {
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -39,7 +39,7 @@ body {
   animation: pulse-ring 2s infinite;
 }
 
-/* 실행 중 카드의 상태 아이콘: BITL 고리가 천천히 돈다 (SessionCard StatusIcon) */
+/* Status icon of a running card: the BITL ring spins slowly (SessionCard StatusIcon) */
 @keyframes bitl-spin {
   to { transform: rotate(360deg); }
 }
@@ -51,7 +51,7 @@ body {
   .bitl-spin { animation: none; }
 }
 
-/* 누를 수 있는 버튼은 손 모양 (Tailwind 4 기본값은 화살표) */
+/* Pointer cursor on clickable buttons (Tailwind 4 defaults to the arrow) */
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;

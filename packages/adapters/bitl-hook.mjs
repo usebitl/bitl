@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// 에이전트 hook/notify 페이로드를 bitl-server 로 전달한다.
+// Forwards agent hook/notify payloads to bitl-server.
 //
-//   Claude Code / Codex hooks : node bitl-hook.mjs --source claude-code|codex   (페이로드는 stdin)
-//   Codex notify              : node bitl-hook.mjs --source codex-notify        (페이로드는 마지막 argv)
-//   Antigravity hooks         : node bitl-hook.mjs --source antigravity --event PreToolUse   (이벤트 이름이 페이로드에 없다)
+//   Claude Code / Codex hooks : node bitl-hook.mjs --source claude-code|codex   (payload on stdin)
+//   Codex notify              : node bitl-hook.mjs --source codex-notify        (payload is the last argv)
+//   Antigravity hooks         : node bitl-hook.mjs --source antigravity --event PreToolUse   (the payload has no event name)
 //
-// 서버: $BITL_URL (기본 http://127.0.0.1:$BITL_PORT, 7777)
-// 서버가 꺼져 있으면 $BITL_HOME/queue.jsonl (기본 ~/.bitl) 에 (암호화한 채로) 쌓아두고, 서버가 시작할 때 처리한다.
+// Server: $BITL_URL (default http://127.0.0.1:$BITL_PORT, 7777)
+// If the server is down, records pile up (encrypted) in $BITL_HOME/queue.jsonl (default ~/.bitl) and are processed when the server starts.
 //
-// 원칙: 에이전트를 절대 방해하지 않는다 — stdout 무출력, 항상 exit 0, 짧은 타임아웃.
-// 해석(정규화)·최소화·암호화는 이 PC 에서 한다 (send.mjs → dist/core.mjs). 서버는 내용을 읽지 못한다.
-// 규칙이 바뀌면 번들만 다시 빌드하면 된다 (pnpm build). 설치 경로가 그대로라 재설치는 필요 없다.
+// Principle: never get in the agent's way — no stdout, always exit 0, short timeouts.
+// Parsing (normalization), minimization and encryption happen on this PC (send.mjs → dist/core.mjs). The server can't read the content.
+// When the rules change, just rebuild the bundle (pnpm build). The install path stays the same, so no reinstall is needed.
 
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -43,7 +43,7 @@ function readStdin() {
   });
 }
 
-/** agy 는 승인 대기를 hook 으로 알리지 않는다 → 그 단계를 지켜볼 프로세스를 따로 띄운다 (bitl-agy-watch.mjs) */
+/** agy doesn't report approval waits via hooks → spawn a separate process to watch that step (bitl-agy-watch.mjs) */
 function watchAgyPermission(payload) {
   try {
     if (typeof payload.stepIdx !== 'number') return;
@@ -52,12 +52,12 @@ function watchAgyPermission(payload) {
     const script = join(import.meta.dirname, 'bitl-agy-watch.mjs');
     spawn(process.execPath, [script, file], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   } catch {
-    // 감시를 못 띄워도 hook 은 계속
+    // the hook carries on even if the watcher can't start
   }
 }
 
 async function main() {
-  const receivedAt = new Date().toISOString(); // hook 이 실행된 시각 (서버 도착 시각이 아님)
+  const receivedAt = new Date().toISOString(); // when the hook ran (not when it reached the server)
   const source = argValue('--source') ?? 'claude-code';
 
   const lastArg = process.argv[process.argv.length - 1];
@@ -66,9 +66,9 @@ async function main() {
   try {
     payload = JSON.parse(raw);
   } catch {
-    return; // 해석할 수 없는 입력은 버린다
+    return; // drop input we can't parse
   }
-  // Antigravity 는 페이로드에 이벤트 이름이 없어 --event 로 받는다
+  // Antigravity payloads have no event name, so it comes via --event
   const event = argValue('--event');
   if (event && payload && typeof payload === 'object' && payload.hook_event_name === undefined) payload.hook_event_name = event;
   if (source === 'antigravity' && event === 'PreToolUse') watchAgyPermission(payload);

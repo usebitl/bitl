@@ -1,4 +1,4 @@
-// 브라우저·어댑터용 (zod 없음): 정규화, 최소화·봉인, 복호화, 타입
+// For browser/adapters (no zod): normalization, minimization/sealing, decryption, types
 export * from './approval.js';
 export * from './crypto.js';
 export * from './kinds.js';

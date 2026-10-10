@@ -4,8 +4,8 @@ import { basename } from 'node:path';
 import type { AgentEvent } from '../events.js';
 import { carriesContext, type Enrichment } from '../prepare.js';
 
-// PC 에서만 알 수 있는 부가 정보 (git 브랜치, 프로젝트 이름, Claude Code ai-title).
-// 서버는 고객 PC 의 파일을 볼 수 없으므로 어댑터가 보내기 전에 붙인다.
+// Extra info only available on the PC (git branch, project name, Claude Code ai-title).
+// The server can't see files on the customer's PC, so the adapter attaches it before sending.
 
 const BRANCH_TTL_MS = 60_000;
 const MAX_TRANSCRIPT_BYTES = 20 * 1024 * 1024;
@@ -23,7 +23,7 @@ export function gitBranch(cwd: string): Promise<string | undefined> {
   });
 }
 
-/** Claude Code 트랜스크립트의 마지막 ai-title 레코드 (자동 생성된 세션 제목) */
+/** The last ai-title record in the Claude Code transcript (auto-generated session title) */
 export async function aiTitleFromTranscript(path: string): Promise<string | undefined> {
   try {
     if ((await stat(path)).size > MAX_TRANSCRIPT_BYTES) return undefined;
@@ -35,7 +35,7 @@ export async function aiTitleFromTranscript(path: string): Promise<string | unde
         const rec = JSON.parse(line) as { type?: string; aiTitle?: string };
         if (rec.type === 'ai-title' && rec.aiTitle) title = rec.aiTitle;
       } catch {
-        // 쓰는 중인 마지막 줄일 수 있음
+        // may be the last line still being written
       }
     }
     return title;
@@ -44,7 +44,7 @@ export async function aiTitleFromTranscript(path: string): Promise<string | unde
   }
 }
 
-/** cwd 가 속한 git 저장소 최상위 폴더. git 저장소가 아니면 undefined */
+/** Top-level folder of the git repository containing cwd. undefined if not a git repository */
 export function gitRoot(cwd: string): Promise<string | undefined> {
   const hit = rootCache.get(cwd);
   if (hit && Date.now() - hit.at < BRANCH_TTL_MS) return Promise.resolve(hit.root);
@@ -58,13 +58,13 @@ export function gitRoot(cwd: string): Promise<string | undefined> {
 }
 const rootCache = new Map<string, { at: number; root?: string }>();
 
-/** 프로젝트 이름: git 저장소 최상위 폴더 이름 (하위 폴더로 cd 해도 같은 프로젝트), 아니면 cwd 폴더 이름 */
+/** Project name: the git repository's top-level folder name (same project even after cd into a subfolder), otherwise the cwd folder name */
 export async function projectName(cwd: string): Promise<string> {
   const root = await gitRoot(cwd);
   return basename((root ?? cwd).replace(/[\\/]+$/, ''));
 }
 
-/** 이벤트에 붙일 부가 정보. 위치가 바뀔 수 있는 이벤트에서만 git 을 실행한다. 실패한 항목은 뺀다 */
+/** Extra info to attach to an event. Runs git only for events where the location may change. Failed items are dropped */
 export async function enrichEvent(e: AgentEvent): Promise<Enrichment> {
   const extra: Enrichment = {};
   const newCwd = e.nativeType === 'CwdChanged' && typeof e.raw.new_cwd === 'string' ? e.raw.new_cwd : undefined;

@@ -17,6 +17,8 @@ deploy/*.tar.gz
 
 # npm 패키지(@usebitl/cli) 빌드 결과
 packages/cli/npm/adapters/
+packages/cli/npm/web/
+packages/cli/npm/LICENSE
 *.tgz
 
 # 내보낸 기록 (커밋하지 않음)

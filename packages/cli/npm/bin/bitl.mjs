@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// bitl 명령 (npm 패키지 @usebitl/cli) 진입점.
-// hook 이 실행할 어댑터를 ~/.bitl/adapters 에 복사해 두고(버전이 바뀌었을 때만) 그 경로로 CLI 를 실행한다.
-// npm 전역 폴더는 Node 버전(nvm 등)에 따라 바뀌어서, hook 이 그 경로를 직접 가리키면 조용히 끊길 수 있다.
-//   node bin/bitl.mjs __sync  — 복사만 (npm postinstall). 실패해도 설치는 막지 않는다
+// Entry point for the bitl command (npm package @usebitl/cli).
+// Copies the adapters that hooks run into ~/.bitl/adapters (only when the version changed) and runs the CLI with that path.
+// The global npm folder changes with the Node version (nvm etc.), so hooks pointing at it directly can silently break.
+//   node bin/bitl.mjs __sync  — copy only (npm postinstall). A failure does not block the install
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const syncOnly = process.argv[2] === '__sync';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -21,10 +22,12 @@ try {
   }
 } catch (err) {
   if (syncOnly) process.exit(0);
-  console.error(`bitl: ${dir} 에 어댑터를 복사하지 못했습니다 — ${err?.message ?? err}`);
+  console.error(`bitl: could not copy adapters to ${dir} — ${err?.message ?? err}`);
   process.exit(1);
 }
 if (syncOnly) process.exit(0);
 
 process.env.BITL_ADAPTER_DIR = dir;
+// Web UI that bitl start serves (built into the package)
+process.env.BITL_WEB_DIST ??= fileURLToPath(new URL('../web/', import.meta.url));
 await import('../dist/cli.mjs');

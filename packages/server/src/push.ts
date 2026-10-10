@@ -4,12 +4,12 @@ import webpush from 'web-push';
 import type { Approval, ApprovalStore, PushStore, PushSubscriptionRow, SessionStore } from './store/index.js';
 
 /**
- * "나를 기다림" 알림.
- * 카드가 나를 기다림(권한 승인·질문 대기) 또는 오류로 **바뀌는 순간** 그 계정의 구독한 기기로 푸시를 보낸다.
+ * "Waiting for you" notifications.
+ * The **moment** a card turns waiting for you (permission or question pending) or error, push to the account's subscribed devices.
  *
- * 서버는 카드 내용을 모른다: 이미 가진 암호문(제목·현재 활동·프로젝트)을 그대로 싣고,
- * 휴대폰의 서비스 워커가 그 기기의 키로 풀어서 보여준다. 못 풀면 "작업 1건이 나를 기다리고 있어요".
- * 알림 자체도 구독 키로 암호화되어(RFC 8291) push 서비스는 내용을 보지 못한다.
+ * The server doesn't know card contents: it ships the ciphertext it already has (title, current activity, project) as is,
+ * and the phone's service worker decrypts it with the device key. If it can't, it shows "1 task is waiting for you".
+ * The notification itself is encrypted with the subscription key (RFC 8291), so the push service can't read it.
  */
 
 export interface PushPayload {
@@ -18,13 +18,13 @@ export interface PushPayload {
   status: StoredSession['status'];
   reason?: string;
   source: StoredSession['source'];
-  /** 나를 기다리는 작업 수 (이 알림 포함) */
+  /** Number of tasks waiting for you (including this one) */
   attention: number;
-  /** 세션 키가 AAD 인 암호문 — 서비스 워커가 푼다 */
+  /** Ciphertexts with the session key as AAD — the service worker decrypts them */
   sealed: { title?: string; activity?: string; project?: string; message?: string };
 }
 
-/** 원격 승인 요청 알림 — 폰이 허용·거부 버튼을 보여준다. 요청 내용(봉인)이 크면 빼고, 서비스 워커가 따로 받아 온다 */
+/** Remote approval request notification — the phone shows allow/deny buttons. A large sealed request is left out and the service worker fetches it separately */
 export interface ApprovalPushPayload {
   v: 1;
   kind: 'approval';
@@ -41,9 +41,9 @@ export function buildApprovalPayload(a: Approval): string {
 }
 
 /**
- * 승인 요청이 끝났음 — 폰이 허용·거부 버튼이 달린 알림을 조용한 알림으로 바꿨다가 닫는다.
- * (웹 푸시는 받으면 알림을 보여야 한다: 아무것도 안 보이면 iOS 는 구독을 끊고 크롬은 기본 알림을 띄운다)
- * 같은 topic 으로 보내 아직 전달되지 않은 승인 요청 알림도 이것으로 바뀐다.
+ * Approval request finished — the phone replaces the allow/deny notification with a silent one, then closes it.
+ * (A received web push must show a notification: if nothing shows, iOS drops the subscription and Chrome shows a default one)
+ * It uses the same topic, so an undelivered approval request notification is replaced by this too.
  */
 export interface ApprovalSettledPushPayload {
   v: 1;
@@ -59,7 +59,7 @@ export const buildApprovalSettledPayload = (a: Approval): string =>
 export type SendResult = 'ok' | 'gone' | 'failed';
 export type PushSender = (sub: PushSubscriptionRow, payload: string, topic: string) => Promise<SendResult>;
 
-/** 실제 발송 (VAPID) */
+/** Actual delivery (VAPID) */
 export function webPushSender(vapid: { publicKey: string; privateKey: string; subject: string }): PushSender {
   webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
   return async (sub, payload, topic) => {
@@ -74,7 +74,7 @@ export function webPushSender(vapid: { publicKey: string; privateKey: string; su
 }
 
 const ALERT: ReadonlySet<StoredSession['status']> = new Set(['waiting_for_you', 'error']);
-/** push 서비스의 본문 한도(약 4KB)를 넘지 않게 */
+/** Stay under the push service's payload limit (~4 KB) */
 const MAX_PAYLOAD = 3500;
 const MAX_FIELD = 1500;
 
@@ -101,16 +101,16 @@ export function buildPayload(s: StoredSession, attention: number): string {
 }
 
 /**
- * 저장소 변화를 듣고 알림을 보낸다. 돌려주는 함수를 부르면 멈춘다.
- * cooldownMs: 같은 카드에 대한 알림 최소 간격 (대기 → 진행 → 대기가 빠르게 반복돼도 한 번만)
+ * Listens to store changes and sends notifications. Call the returned function to stop.
+ * cooldownMs: minimum interval between notifications for the same card (just once even if waiting → running → waiting flips quickly)
  */
 export function startPushNotifier(opts: {
   store: SessionStore;
   push: PushStore;
   sender: PushSender;
-  /** 있으면 원격 승인 요청도 알린다 */
+  /** If set, remote approval requests are notified too */
   approvals?: ApprovalStore;
-  /** 이 계정에 알려도 되는가 (요금제: 읽기 전용이면 알리지 않는다) */
+  /** Whether this account may be notified (billing: not when read-only) */
   canNotify?: (accountId: string) => Promise<boolean>;
   cooldownMs?: number;
   onError?: (err: unknown) => void;
@@ -119,7 +119,7 @@ export function startPushNotifier(opts: {
   const lastSent = new Map<string, number>();
   let inflight = Promise.resolve();
 
-  // 같은 대상의 전달 안 된 알림은 새 것으로 바꾼다 (topic: URL-safe 32자 이내)
+  // Replace undelivered notifications for the same target with the new one (topic: URL-safe, up to 32 chars)
   const topicOf = (v: string) => createHash('sha256').update(v).digest('base64url').slice(0, 32);
 
   const sendAll = async (accountId: string, payload: string, topic: string) => {
@@ -151,8 +151,8 @@ export function startPushNotifier(opts: {
     if (lastSent.size > 10_000) lastSent.clear();
     inflight = inflight.then(() => notify(change.accountId, s)).catch((err) => opts.onError?.(err));
   });
-  // 원격 승인: 새 요청마다 바로 (쿨다운 없음 — 요청마다 답이 필요하다)
-  // 끝나면(허용·거부·터미널에서 답함·시간 초과) 같은 topic 으로 정리 알림 — 폰에 남은 버튼 달린 알림을 치운다
+  // Remote approval: immediately for each new request (no cooldown — every request needs an answer)
+  // When it ends (allow, deny, answered in the terminal, timeout), send a cleanup notification with the same topic — clears the leftover button notification on the phone
   const offApprovals = opts.approvals?.subscribe(({ accountId, approval }) => {
     const payload = approval.status === 'pending' ? buildApprovalPayload(approval) : buildApprovalSettledPayload(approval);
     inflight = inflight.then(() => sendAll(accountId, payload, topicOf(`approval:${approval.id}`))).catch((err) => opts.onError?.(err));

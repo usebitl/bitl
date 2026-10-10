@@ -1,10 +1,10 @@
-// 원격 승인: PC 의 Claude Code 가 권한을 물으면 폰에서 허용·거부한다.
+// Remote approval: when Claude Code on the PC asks for permission, allow or deny it from the phone.
 //
-// 서버는 중계만 하고, 승인을 만들어 낼 수 없어야 한다 — 서버가 털려도 PC 에서 명령이 실행되면 안 된다.
-//   - 요청 내용(도구·명령)은 PC 가 계정 키로 봉인한다. AAD = 승인 id → 서버가 다른 요청의 내용으로 바꿔 보여줄 수 없다
-//   - 결정(allow/deny)은 폰이 계정 키에서 따로 만든 승인 키로 서명한다 (HMAC, 승인 id 포함) → 서버는 서명을 만들 수 없다
-//   - PC 는 서명을 확인한 결정만 따른다. 확인이 안 되면 터미널의 승인 창으로 넘긴다
-// 승인 id 는 PC 가 요청마다 새로 만든다 — 지난 승인의 서명을 다른 요청에 다시 쓸 수 없다.
+// The server only relays and must not be able to forge an approval — even if the server is compromised, no command may run on the PC.
+//   - The request content (tool/command) is sealed by the PC with the account key. AAD = approval id → the server can't swap in another request's content
+//   - The decision (allow/deny) is signed by the phone with a separate approval key derived from the account key (HMAC, includes the approval id) → the server can't produce a signature
+//   - The PC only follows decisions whose signature checks out. Otherwise it falls back to the terminal's approval prompt
+// The PC creates a new approval id per request — a past approval's signature can't be reused for another request.
 import { type ContentKeys, fromBase64Url, open, seal, toBase64Url, type Sealed } from './crypto.js';
 import { oneLine, summarizeToolInput } from './normalize.js';
 
@@ -12,14 +12,14 @@ export type ApprovalDecision = 'allow' | 'deny';
 export const APPROVAL_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 export const APPROVAL_SIG_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-/** 폰에 보여줄 승인 요청 (봉인되어 서버를 지난다) */
+/** Approval request shown on the phone (passes through the server sealed) */
 export interface ApprovalRequest {
   tool: string;
-  /** 한 줄 요약 — 알림·카드용 (예: "Bash: rm -rf dist") */
+  /** One-line summary — for notifications/cards (e.g. "Bash: rm -rf dist") */
   summary: string;
-  /** 자세히 — 전체 명령, 바꿀 파일과 내용 일부 등 */
+  /** Details — full command, the file to change and part of its content, etc. */
   detail?: string;
-  /** 에이전트가 붙인 설명 (Bash 의 description 등) */
+  /** Description attached by the agent (Bash's description etc.) */
   description?: string;
   project?: string;
   cwd?: string;
@@ -33,7 +33,7 @@ export function newApprovalId(): string {
   return toBase64Url(globalThis.crypto.getRandomValues(new Uint8Array(16)));
 }
 
-/** Claude Code PermissionRequest 의 tool_name·tool_input → 폰에 보여줄 요청 */
+/** Claude Code PermissionRequest tool_name/tool_input → request shown on the phone */
 export function describeToolRequest(toolName: string, input: unknown, extra: { project?: string; cwd?: string } = {}): ApprovalRequest {
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
   const short = summarizeToolInput(i);
@@ -44,7 +44,7 @@ export function describeToolRequest(toolName: string, input: unknown, extra: { p
     const body =
       str(i.content) ??
       (typeof i.new_string === 'string' ? `- ${oneLine(String(i.old_string ?? ''), 300)}\n+ ${i.new_string}` : undefined) ??
-      (Array.isArray(i.edits) ? `${i.edits.length}곳 수정` : undefined);
+      (Array.isArray(i.edits) ? `${i.edits.length} edits` : undefined);
     detail = body ? `${i.file_path}\n\n${body}` : i.file_path;
   } else if (typeof i.plan === 'string') detail = i.plan;
   else if (Object.keys(i).length) detail = JSON.stringify(i, null, 2);
@@ -67,7 +67,7 @@ export async function openApprovalRequest(keys: ContentKeys, id: string, sealed:
   return req;
 }
 
-// 승인 서명 키: 계정 키(마스터)에서 용도를 분리해 만든다. 다른 HMAC(tag) 과 섞이지 않게
+// Approval signing key: derived from the account (master) key with a separate purpose, so it never mixes with the other HMAC (tag)
 const approvalKeys = new WeakMap<ContentKeys, Promise<CryptoKey>>();
 function approvalKey(keys: ContentKeys): Promise<CryptoKey> {
   let k = approvalKeys.get(keys);
@@ -90,13 +90,13 @@ function approvalKey(keys: ContentKeys): Promise<CryptoKey> {
 
 const message = (id: string, decision: ApprovalDecision) => new TextEncoder().encode(`bitl/approval/v1\n${id}\n${decision}`);
 
-/** 폰(브라우저): 결정에 서명한다 */
+/** Phone (browser): signs the decision */
 export async function signDecision(keys: ContentKeys, id: string, decision: ApprovalDecision): Promise<string> {
   const mac = await globalThis.crypto.subtle.sign('HMAC', await approvalKey(keys), message(id, decision));
   return toBase64Url(new Uint8Array(mac));
 }
 
-/** PC(hook): 이 계정 키로 서명한 결정인지 확인한다 (상수 시간 비교) */
+/** PC (hook): checks the decision was signed with this account key (constant-time comparison) */
 export async function verifyDecision(keys: ContentKeys, id: string, decision: string, sig: string): Promise<boolean> {
   if ((decision !== 'allow' && decision !== 'deny') || !APPROVAL_SIG_PATTERN.test(sig)) return false;
   return globalThis.crypto.subtle.verify('HMAC', await approvalKey(keys), fromBase64Url(sig), message(id, decision));

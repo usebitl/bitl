@@ -1,9 +1,9 @@
 import { type ContentKeys, keysFromBase64Url } from '@bitl/shared/client';
 
 /**
- * 이 브라우저의 내용 키. 서버는 키를 모른다 — 카드 내용은 여기서 푼다.
- * 처음 한 번 `bitl pair` 링크(#key=…)로 받아 IndexedDB 에 추출 불가능한 CryptoKey 로 보관한다.
- * 주소의 # 뒤는 서버로 전송되지 않고, 받은 즉시 주소에서 지운다.
+ * This browser's content keys. The server never knows them — card contents are decrypted here.
+ * Received once via a `bitl pair` link (#key=…) and stored in IndexedDB as a non-extractable CryptoKey.
+ * The part after # is never sent to the server, and it is removed from the URL as soon as it is read.
  */
 
 const DB_NAME = 'bitl';
@@ -37,7 +37,7 @@ async function init(): Promise<ContentKeys | null> {
   if (m?.[1]) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
     const keys = await keysFromBase64Url(m[1]);
-    // 저장하지 못하면(사생활 보호 모드 등) 이 페이지를 연 동안만 쓴다
+    // if it can't be stored (private mode, etc.), use it only while this page is open
     await withStore('readwrite', (s) => s.put(keys, RECORD)).catch(() => {});
     return keys;
   }
@@ -48,12 +48,12 @@ async function init(): Promise<ContentKeys | null> {
 
 let current: Promise<ContentKeys | null> | undefined;
 
-// 이미 열린 탭에서 연결 링크를 열면 # 뒤만 바뀌어 페이지가 다시 읽히지 않는다 — 한 번 새로 읽어 키를 받는다
+// Opening a pairing link in an already-open tab only changes the part after #, so the page doesn't reload — reload once to pick up the key
 window.addEventListener('hashchange', () => {
   if (/(?:^#|&)key=/.test(window.location.hash)) window.location.reload();
 });
 
-/** 페이지당 한 번 읽는다 (연결 링크로 열었으면 그 키) */
+/** Read once per page (the link's key if opened via a pairing link) */
 export const contentKeys = (): Promise<ContentKeys | null> => (current ??= init());
 
 const listeners = new Set<(keys: ContentKeys) => void>();
@@ -63,7 +63,7 @@ export function onKeysChanged(fn: (keys: ContentKeys) => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** 기기 연결로 받은 계정 키를 저장하고 화면에 알린다 */
+/** Stores the account keys received via device pairing and notifies the UI */
 export async function saveContentKeys(keys: ContentKeys): Promise<void> {
   await withStore('readwrite', (s) => s.put(keys, RECORD)).catch(() => {});
   current = Promise.resolve(keys);

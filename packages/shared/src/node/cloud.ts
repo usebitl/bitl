@@ -4,9 +4,9 @@ import { type ContentKeys, keysFromBase64Url } from '../crypto.js';
 import { bitlHome, loadKeys } from './keys.js';
 
 /**
- * 이 PC 가 클라우드 계정에 연결됐는지 (bitl login). 연결됐으면 수집기·CLI 는 그 계정으로 보낸다.
- *   $BITL_HOME/cloud.json  { url, deviceId, apiKey, name }  — API 키가 들어 있어 이 사용자만 읽게 만든다
- *   $BITL_HOME/cloud-key   계정 내용 키 (로컬 모드의 key 와 같을 수도, 다를 수도 있다)
+ * Whether this PC is linked to a cloud account (bitl login). If linked, the collectors and CLI send to that account.
+ *   $BITL_HOME/cloud.json  { url, deviceId, apiKey, name }  — contains the API key, so it's readable only by this user
+ *   $BITL_HOME/cloud-key   account content key (may or may not be the same as the local mode key)
  */
 export interface CloudConfig {
   url: string;
@@ -43,15 +43,15 @@ export function removeCloudLogin(home = bitlHome()) {
 }
 
 /**
- * 이 PC 의 bitl 버전 — 웹의 기기 화면이 업데이트가 필요한 PC 를 알려 주는 데 쓴다.
- * npm 패키지 빌드(cli/npm/build.mjs)가 BITL_CLIENT_VERSION 을 넣는다. 저장소에서 돌리면 없음
+ * This PC's bitl version — the web devices screen uses it to flag PCs that need an update.
+ * The npm package build (cli/npm/build.mjs) injects BITL_CLIENT_VERSION. Absent when run from the repo
  */
 export function clientVersionHeader(): Record<string, string> {
   const v = process.env.BITL_CLIENT_VERSION;
   return v ? { 'x-bitl-client': v } : {};
 }
 
-/** 보낼 곳: 클라우드 계정(연결됐으면) 또는 이 PC 의 로컬 서버 */
+/** Destination: the cloud account (if linked) or this PC's local server */
 export interface Target {
   kind: 'cloud' | 'local';
   url: string;

@@ -8,8 +8,8 @@ const AT = '2026-09-27T00:00:00.000Z';
 const hook = (name: string, extra: Record<string, unknown> = {}) =>
   normalizeHook('claude-code', { session_id: 's1', cwd: 'C:/work/secret-project', hook_event_name: name, ...extra }, AT)!;
 
-describe('splitEvent — 최소화', () => {
-  it('도구 입력 전체와 도구 결과는 보내지 않는다 (이름과 한 줄 요약만)', () => {
+describe('splitEvent — minimization', () => {
+  it('does not send full tool input or tool results (only name and one-line summary)', () => {
     const code = 'export const password = "hunter2";';
     const { signal, content } = splitEvent(
       hook('PostToolUse', {
@@ -24,7 +24,7 @@ describe('splitEvent — 최소화', () => {
     expect(content).toEqual({ activity: 'Edit: src/config.ts', tool: 'Edit', toolSummary: 'src/config.ts' });
   });
 
-  it('프롬프트·응답은 앞부분만, 제목은 한 줄', () => {
+  it('prompts and replies are truncated, title is one line', () => {
     const long = `첫 줄\n${'가'.repeat(TEXT_LIMIT + 2000)}`;
     const { content } = splitEvent(hook('UserPromptSubmit', { prompt: long }));
     expect(content.text!.length).toBe(TEXT_LIMIT);
@@ -33,13 +33,13 @@ describe('splitEvent — 최소화', () => {
     expect(content.title).not.toContain('\n');
   });
 
-  it('작업 위치(cwd)는 세션 시작·지시·턴 종료에만 싣는다', () => {
+  it('working directory (cwd) is included only on session start, prompt and turn end', () => {
     expect(splitEvent(hook('UserPromptSubmit', { prompt: 'x' })).content.cwd).toBe('C:/work/secret-project');
     expect(splitEvent(hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'ls' } })).content.cwd).toBeUndefined();
     expect(splitEvent(hook('CwdChanged', { new_cwd: 'C:/work/other' })).content.cwd).toBe('C:/work/other');
   });
 
-  it('신호에는 상태 판단에 필요한 것만 (내용 없음)', () => {
+  it('signal holds only what status tracking needs (no content)', () => {
     const { signal } = splitEvent(hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'rm -rf dist' }, agent_id: 'a1', agent_type: 'Explore' }));
     expect(signal).toEqual({
       source: 'claude-code',
@@ -53,12 +53,12 @@ describe('splitEvent — 최소화', () => {
     });
   });
 
-  it('agent_type 이 빈 서브에이전트는 agentNamed=false', () => {
+  it('a subagent with empty agent_type has agentNamed=false', () => {
     expect(splitEvent(hook('SubagentStop', { agent_id: 'x', agent_type: '' })).signal.agentNamed).toBe(false);
     expect(splitEvent(hook('Stop')).signal.agentNamed).toBeUndefined();
   });
 
-  it('상태 보고: 시작은 제목을, 이후는 request 를 태그 대상으로', () => {
+  it('status reports: tag source is the title on start, request afterwards', () => {
     const start = normalizeReport('claude-desktop', { session_id: 'd1', event: 'start', title: '회의록', request: '요약해줘' }, AT)!;
     expect(splitEvent(start).tagSource).toBe('요약해줘');
     const noRequest = normalizeReport('manual', { session_id: 'm1', event: 'start', title: '배포 확인' }, AT)!;
@@ -68,8 +68,8 @@ describe('splitEvent — 최소화', () => {
   });
 });
 
-describe('prepareRecord — 봉인', () => {
-  it('내용은 모두 암호문, 신호는 평문, 서버 검증을 통과한다', async () => {
+describe('prepareRecord — sealing', () => {
+  it('content is all ciphertext, signal is plaintext, passes server validation', async () => {
     const keys = await deriveKeys(generateMasterKey());
     const e = hook('UserPromptSubmit', { prompt: '로그인 버그 고쳐줘', prompt_id: 'p1' });
     const rec = await prepareRecord(e, sealerFor(keys), { project: 'secret-project', gitBranch: 'main' });
@@ -83,7 +83,7 @@ describe('prepareRecord — 봉인', () => {
     expect(parseWireRecord(JSON.parse(json))).not.toBeNull();
   });
 
-  it('서버 검증은 평문 내용·옛 형식을 거부한다', () => {
+  it('server validation rejects plaintext content and the old format', () => {
     const signal = { source: 'claude-code', sessionId: 's1', type: 'prompt', nativeType: 'UserPromptSubmit', at: AT };
     expect(parseWireRecord({ v: 2, signal, content: { text: '평문 프롬프트' } })).toBeNull();
     expect(parseWireRecord({ v: 2, signal, content: {} })).not.toBeNull();
@@ -92,7 +92,7 @@ describe('prepareRecord — 봉인', () => {
 });
 
 describe('normalizeRecord', () => {
-  it('source 로 형식을 고르고 시각을 UTC 로', () => {
+  it('picks the format by source and converts time to UTC', () => {
     expect(normalizeRecord({ source: 'codex-notify', payload: { type: 'agent-turn-complete', 'thread-id': 't1' } })?.source).toBe('codex');
     expect(normalizeRecord({ source: 'manual', payload: { session_id: 'm', event: 'start', title: 't' } })?.nativeType).toBe('report:start');
     expect(normalizeRecord({ source: 'claude-code', receivedAt: '2026-09-27T09:00:00+09:00', payload: { session_id: 's', hook_event_name: 'Stop' } })?.at).toBe(

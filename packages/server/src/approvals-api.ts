@@ -5,13 +5,13 @@ import { type ApprovalStore, MAX_APPROVAL_TTL_MS, type SessionStore } from './st
 
 type Env = { Variables: { accountId: string; deviceId?: string } };
 
-/** PC 가 한 번에 붙잡고 기다리는 최대 시간 (프록시·Caddy 시간 제한보다 짧게). 그 뒤 다시 묻는다 */
+/** Max time the PC holds a single wait (shorter than proxy/Caddy timeouts). It asks again afterwards */
 const MAX_WAIT_MS = 25_000;
 
 /**
- * 카드가 "나를 기다림"에서 다른 상태로 바뀌면 그 카드의 기다리는 승인 요청을 닫는다.
- * 원격 승인이 켜져 있어도 터미널 승인 창은 뜨고 먼저 온 답이 이긴다 — 터미널에서 답했으면 폰·보드의 요청은 의미가 없다.
- * (폰에서 답했으면 그 요청은 이미 결정돼 pending 이 아니다)
+ * When a card leaves "waiting for you", close that card's pending approval requests.
+ * Even with remote approval on, the terminal prompt still appears and the first answer wins — once answered in the terminal, the phone/board request is moot.
+ * (If answered on the phone, the request is already decided and no longer pending)
  */
 export function closeApprovalsOnResume(store: SessionStore, approvals: ApprovalStore, onError?: (err: unknown) => void): () => void {
   return store.subscribe((change) => {
@@ -21,20 +21,20 @@ export function closeApprovalsOnResume(store: SessionStore, approvals: ApprovalS
 }
 
 /**
- * 원격 승인 API (계정 안에서만). 서버는 중계만 한다 — 요청 내용은 봉인돼 있고, 결정의 서명은 폰이 만들고 PC 가 확인한다.
- *   GET  /api/approvals/mode            원격 승인이 켜졌는지 {away} (PC hook 이 요청을 올릴지 정한다)
- *   PUT  /api/approvals/mode {away}     원격 승인 켜기·끄기 (보드, bitl remote). 필드 이름 away 는 처음 이름(자리 비움) 그대로 — 설치된 hook 과 맞춘다
- *   POST /api/approvals                 PC: 새 요청 {id, sessionKey, request(봉인), ttlSec}
- *   GET  /api/approvals                 보드: 기다리는 요청 목록
- *   GET  /api/approvals/:id             상태
- *   GET  /api/approvals/:id/wait        PC: 결정이 나거나 최대 25초 지날 때까지 기다렸다가 상태
- *   POST /api/approvals/:id/decide      폰: {decision, sig} — 먼저 온 결정이 이긴다
- *   POST /api/approvals/:id/cancel      PC: 그만 기다림 (터미널에서 직접 답하기로)
+ * Remote approval API (account-scoped). The server only relays — request contents are sealed; the phone signs the decision and the PC verifies it.
+ *   GET  /api/approvals/mode            whether remote approval is on {away} (decides whether the PC hook posts requests)
+ *   PUT  /api/approvals/mode {away}     turn remote approval on/off (board, bitl remote). The field name away is kept from the original "away mode" name to match installed hooks
+ *   POST /api/approvals                 PC: new request {id, sessionKey, request (sealed), ttlSec}
+ *   GET  /api/approvals                 board: pending requests
+ *   GET  /api/approvals/:id             status
+ *   GET  /api/approvals/:id/wait        PC: wait until decided or up to 25 s, then return the status
+ *   POST /api/approvals/:id/decide      phone: {decision, sig} — first decision wins
+ *   POST /api/approvals/:id/cancel      PC: stop waiting (answering in the terminal instead)
  */
 export function mountApprovals(app: Hono<Env>, approvals: ApprovalStore, access: AccessPolicy = allowAll) {
   const notFound = { error: 'not found' } as const;
 
-  // 읽기 전용이면 꺼진 것으로 답한다 → PC hook 은 바로 물러나 터미널에서 승인 (스위치 자체는 그대로 기억)
+  // Read-only accounts get "off" → the PC hook backs off immediately to terminal approval (the toggle itself is remembered)
   app.get('/api/approvals/mode', async (c) =>
     c.json({ away: (await approvals.isAway(c.var.accountId)) && (await access.canWrite(c.var.accountId)) }),
   );
@@ -82,7 +82,7 @@ export function mountApprovals(app: Hono<Env>, approvals: ApprovalStore, access:
   app.get('/api/approvals/:id/wait', async (c) => {
     const [accountId, id] = [c.var.accountId, c.req.param('id')];
     const ms = Math.min(Math.max(Number(c.req.query('ms') ?? MAX_WAIT_MS) || 0, 0), MAX_WAIT_MS);
-    // 먼저 구독하고 나서 읽는다 (그 사이의 결정을 놓치지 않게)
+    // Subscribe first, then read (so a decision in between isn't missed)
     let wake: (() => void) | undefined;
     const off = approvals.subscribe((ch) => {
       if (ch.accountId === accountId && ch.approval.id === id && ch.approval.status !== 'pending') wake?.();
@@ -110,7 +110,7 @@ export function mountApprovals(app: Hono<Env>, approvals: ApprovalStore, access:
   app.post('/api/approvals/:id/decide', async (c) => {
     const b = (await c.req.json().catch(() => null)) as { decision?: unknown; sig?: unknown } | null;
     const { decision, sig } = b ?? {};
-    // 서버는 서명을 확인할 수 없다 (키가 없다) — 모양만 본다. 확인은 PC 가 한다
+    // The server can't verify the signature (it has no key) — only the shape is checked. The PC verifies it
     if ((decision !== 'allow' && decision !== 'deny') || typeof sig !== 'string' || !APPROVAL_SIG_PATTERN.test(sig))
       return c.json({ error: 'invalid decision' }, 400);
     const [accountId, id] = [c.var.accountId, c.req.param('id')];

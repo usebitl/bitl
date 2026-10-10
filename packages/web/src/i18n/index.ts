@@ -2,9 +2,9 @@ import { type ReactNode, createElement, Fragment, useSyncExternalStore } from 'r
 import { en } from './en';
 import { ko, type MessageKey } from './ko';
 
-// 화면 문구 다국어. 문구는 ko.ts(기준)·en.ts 에 키로 모은다 — en 은 ko 의 키를 빠짐없이 가져야 컴파일된다.
-// 언어: 주소(/ko, /en 소개 페이지) → 사용자가 고른 값(localStorage) → 브라우저 언어. 기본 한국어.
-// 컴포넌트 밖(format.ts 등)에서도 t() 를 쓸 수 있게 현재 언어는 모듈 변수로 두고, 바뀌면 useLang() 을 쓰는 루트가 다시 그린다.
+// UI string i18n. Strings are keyed in ko.ts (the reference) and en.ts — en must have every ko key to compile.
+// Language: URL (/ko, /en landing pages) → user choice (localStorage) → browser language. Default Korean.
+// The current language is a module variable so t() works outside components (format.ts, etc.); when it changes, the root using useLang() re-renders.
 
 export type Lang = 'ko' | 'en';
 export const LANGS: readonly Lang[] = ['ko', 'en'];
@@ -15,7 +15,7 @@ const STORAGE_KEY = 'bitl.lang';
 
 const isLang = (v: unknown): v is Lang => v === 'ko' || v === 'en';
 
-/** 주소가 /ko, /en 이면 그 언어 (소개 페이지) */
+/** The language from a /ko or /en URL (landing pages) */
 export function langFromPath(path: string): Lang | undefined {
   const m = /^\/(ko|en)\/?$/.exec(path);
   return m ? (m[1] as Lang) : undefined;
@@ -29,12 +29,12 @@ function detect(): Lang {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (isLang(saved)) return saved;
   } catch {
-    // 저장소를 못 쓰는 환경
+    // storage unavailable
   }
   return (navigator.languages?.[0] ?? navigator.language ?? '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }
 
-/** 서비스 워커(sw/sw.ts)가 휴대폰 알림을 같은 언어로 쓰게 캐시에 적어 둔다 */
+/** Written to the cache so the service worker (sw/sw.ts) uses the same language for phone notifications */
 function shareWithServiceWorker(lang: Lang): void {
   if (typeof caches === 'undefined') return;
   caches
@@ -50,13 +50,13 @@ shareWithServiceWorker(current);
 
 export const getLang = (): Lang => current;
 
-/** 언어 바꾸기. remember: 이 브라우저에 기억 (사용자가 직접 고른 경우) */
+/** Change language. remember: remember in this browser (when the user chose it) */
 export function setLang(lang: Lang, remember = true): void {
   if (remember) {
     try {
       localStorage.setItem(STORAGE_KEY, lang);
     } catch {
-      // 이번 방문만
+      // this visit only
     }
   }
   if (lang === current) return;
@@ -66,7 +66,7 @@ export function setLang(lang: Lang, remember = true): void {
   for (const l of listeners) l();
 }
 
-/** 현재 언어. 바뀌면 다시 그린다 — 루트에서 한 번 쓰면 아래 컴포넌트의 t() 도 새 언어로 그려진다 */
+/** Current language; re-renders on change — used once at the root, t() in components below renders in the new language too */
 export function useLang(): Lang {
   return useSyncExternalStore(
     (cb) => {
@@ -78,15 +78,17 @@ export function useLang(): Lang {
   );
 }
 
-/** 문구. {name} 자리에 vars 값을 넣는다 */
+/** A string. Substitutes vars values into {name} placeholders */
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
   const text = DICT[current][key] ?? ko[key];
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  // {s} is the English plural ending for {n}: "{n} turn{s}" → "1 turn", "2 turns"
+  const all = vars && 'n' in vars ? { s: vars.n === 1 ? '' : 's', ...vars } : vars;
+  return all ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in all ? String(all[k]) : m)) : text;
 }
 
 /**
- * 꾸밈이 섞인 문구. 문구 안의 <b>…</b>, <code>…</code> 같은 표시를 tags 의 함수로 감싼다 (겹침 없음).
- * 예) rich('cx.trust', { code: (s) => <code>{s}</code> })
+ * A string with markup. Wraps marks like <b>…</b> and <code>…</code> in the string with the functions in tags (no nesting).
+ * e.g. rich('cx.trust', { code: (s) => <code>{s}</code> })
  */
 export function rich(key: MessageKey, tags: Record<string, (text: string) => ReactNode>, vars?: Record<string, string | number>): ReactNode {
   const parts: ReactNode[] = [];
@@ -105,3 +107,6 @@ export function rich(key: MessageKey, tags: Record<string, (text: string) => Rea
 }
 
 export type { MessageKey };
+
+/** Fallback card titles for displayTitle() in the current language */
+export const titleLabels = () => ({ locked: t('card.locked'), untitled: t('card.untitled') });

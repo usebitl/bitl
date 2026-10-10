@@ -1,6 +1,6 @@
 import type { MessageKey } from './ko';
 
-// 화면 문구 — English. ko.ts 의 키를 빠짐없이 가져야 한다 (타입이 확인).
+// UI strings — English. Must have every key in ko.ts (checked by the type).
 export const en: Record<MessageKey, string> = {
   'common.copy': 'Copy',
   'common.copied': 'Copied',
@@ -195,7 +195,7 @@ export const en: Record<MessageKey, string> = {
   'goal.add': 'Goal',
   'goal.addLong': 'New goal',
   'goal.bar': 'Goals',
-  'goal.cards': '{n} cards',
+  'goal.cards': '{n} card{s}',
   'goal.s.attention': '{n} waiting',
   'goal.s.running': '{n} running',
   'goal.s.review': '{n} review',
@@ -217,8 +217,8 @@ export const en: Record<MessageKey, string> = {
   'goal.pickNone': 'Clear',
   'goal.noCards': 'No cards yet. Cards appear once you connect an agent.',
   'goal.other': 'Other cards',
-  'goal.create': 'Create goal · {n} cards',
-  'goal.save': 'Save · {n} cards',
+  'goal.create': 'Create goal · {n} card{s}',
+  'goal.save': 'Save · {n} card{s}',
   'goal.cancel': 'Cancel',
   'goal.delete': 'Delete goal',
   'goal.deleteConfirm': 'Delete this goal? Its cards stay as they are.',
@@ -234,7 +234,7 @@ export const en: Record<MessageKey, string> = {
   'ended.hint': 'Sessions your agents finished',
   'ended.hintClosed': 'Sessions your agents finished · collapsed',
   'ended.hintEmpty': 'Sessions land here when your agents finish them',
-  'ended.deleted': 'Deleted {n} ended cards',
+  'ended.deleted': 'Deleted {n} ended card{s}',
   'ended.failed': "Couldn't delete. Please try again.",
   'ended.clear': 'Delete all',
   'ended.confirm': 'Delete {n} ended cards and their history? This cannot be undone.',
@@ -300,9 +300,11 @@ export const en: Record<MessageKey, string> = {
   'card.pinned': "Pinned",
   'card.lastPrompt': "Last prompt",
   'card.lastResponse': "Last response",
-  'card.turns': "{n} turns",
-  'card.tools': "{n} tools",
-  'card.subagents': "{n} subagents",
+  'card.turns': "{n} turn{s}",
+  'card.tools': "{n} tool{s}",
+  'card.locked': "🔒 Can't be opened with this device's key",
+  'card.untitled': "(untitled)",
+  'card.subagents': "{n} subagent{s}",
   'detail.sessionStart': "Session started",
   'detail.sessionEnd': "Session ended",
   'detail.subagentStart': "Subagent started",

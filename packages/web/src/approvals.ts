@@ -2,11 +2,11 @@ import { type ApprovalDecision, type ApprovalRequest, type ContentKeys, openAppr
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * 원격 승인: PC 의 Claude Code 가 권한을 물으면 여기서 허용·거부한다.
- * 요청 내용은 이 기기의 키로 풀고, 결정은 이 기기의 키로 서명한다 — PC 는 서명을 확인한 결정만 따른다.
+ * Remote approval: when Claude Code on the PC asks for permission, allow or deny it here.
+ * Requests are decrypted and decisions signed with this device's key — the PC only follows decisions whose signature it verifies.
  */
 
-/** 서버가 주는 모양 (server/store/approval-store.ts) */
+/** Shape returned by the server (server/store/approval-store.ts) */
 export interface StoredApproval {
   id: string;
   sessionKey: string;
@@ -21,7 +21,7 @@ export interface Approval {
   sessionKey: string;
   createdAt: string;
   expiresAt: string;
-  /** 풀지 못하면 없음 (키가 없거나 다른 계정 키) */
+  /** Absent when it can't be decrypted (no keys, or another account's keys) */
   request?: ApprovalRequest;
 }
 
@@ -30,7 +30,7 @@ export async function openApproval(keys: ContentKeys | null, a: StoredApproval):
   return { id: a.id, sessionKey: a.sessionKey, createdAt: a.createdAt, expiresAt: a.expiresAt, request };
 }
 
-/** 서명한 결정을 보낸다. 이미 다른 기기에서 답했거나 PC 가 그만 기다렸으면 그 상태를 알려준다 */
+/** Sends a signed decision. Reports the state if another device already answered or the PC stopped waiting */
 export async function decide(keys: ContentKeys, id: string, decision: ApprovalDecision): Promise<'ok' | 'settled' | 'gone'> {
   const sig = await signDecision(keys, id, decision);
   const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/decide`, {
@@ -42,7 +42,7 @@ export async function decide(keys: ContentKeys, id: string, decision: ApprovalDe
   return res.status === 409 ? 'settled' : 'gone';
 }
 
-/** 원격 승인 켜기·끄기. undefined: 읽는 중, null: 이 서버는 지원하지 않음 */
+/** Remote approval on/off. undefined: loading, null: not supported by this server */
 export function useAwayMode(): { away: boolean | null | undefined; setAway: (on: boolean) => Promise<void> } {
   const [away, setState] = useState<boolean | null | undefined>(undefined);
   useEffect(() => {

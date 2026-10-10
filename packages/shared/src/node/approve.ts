@@ -1,8 +1,8 @@
-// 원격 승인 — PC 쪽 (Claude Code PermissionRequest hook: adapters/bitl-approve.mjs).
+// Remote approval — PC side (Claude Code PermissionRequest hook: adapters/bitl-approve.mjs).
 //
-// 원격 승인이 켜졌을 때만: 요청을 봉인해 올리고, 폰의 결정을 기다렸다가 서명을 확인해 allow/deny 를 돌려준다.
-// 그 밖의 경우(원격 승인 꺼짐, 서버 연결 실패, 시간 초과, 서명이 틀림)는 null → hook 이 아무것도 출력하지 않고
-// Claude Code 가 평소처럼 터미널에 승인 창을 띄운다. 어떤 실패도 "허용"으로 이어지지 않는다.
+// Only when remote approval is on: seals and uploads the request, waits for the phone's decision, verifies the signature and returns allow/deny.
+// In every other case (remote approval off, server unreachable, timeout, bad signature) it returns null → the hook prints nothing and
+// Claude Code shows the approval prompt in the terminal as usual. No failure ever turns into "allow".
 import { describeToolRequest, newApprovalId, sealApprovalRequest, verifyDecision } from '../approval.js';
 import { resolveTarget } from './cloud.js';
 import { projectName } from './enrich.js';
@@ -12,19 +12,19 @@ export type RemoteDecision = { behavior: 'allow' } | { behavior: 'deny'; message
 
 export interface ApproveOptions {
   home?: string;
-  /** 폰의 답을 기다릴 최대 시간 */
+  /** Max time to wait for the phone's answer */
   waitMs?: number;
-  /** hook 이 끝나야 할 때 (Claude Code 가 hook 을 멈춤) */
+  /** When the hook must end (Claude Code stops the hook) */
   signal?: AbortSignal;
   log?: (msg: string) => void;
 }
 
-/** 기본 대기 10분. hook 설정의 timeout 은 이보다 길게 (cli/install.ts) */
+/** Default wait is 10 minutes. The hook config timeout is longer than this (cli/install.ts) */
 export const DEFAULT_APPROVAL_WAIT_MS = 10 * 60_000;
-/** 폰이 답하지 않아도 되는 도구: 선택지 질문은 hook 으로 답할 수 없다 (터미널에서만) */
+/** Tools the phone doesn't answer: multiple-choice questions can't be answered via the hook (terminal only) */
 const SKIP_TOOLS = new Set(['AskUserQuestion']);
 const POLL_MS = 25_000;
-const DENY_MESSAGE = '사용자가 휴대폰(BITL 원격 승인)에서 거부했습니다.';
+const DENY_MESSAGE = 'The user denied this from their phone (BITL remote approval).';
 
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -50,15 +50,15 @@ export async function requestRemoteApproval(payload: Record<string, unknown>, op
     return (await res.json()) as Record<string, unknown>;
   };
 
-  // 1. 원격 승인이 켜졌나 — 아니면 바로 물러난다 (터미널 창이 늦게 뜨지 않게 짧게)
+  // 1. Is remote approval on? If not, back off right away (short, so the terminal prompt isn't delayed)
   try {
     if ((await api('/api/approvals/mode', { timeoutMs: 2000 })).away !== true) return null;
   } catch (err) {
-    log(`원격 승인: 서버에 물을 수 없어 터미널에서 승인합니다 (${(err as Error).message})`);
+    log(`remote approval: can't reach the server, approving in the terminal (${(err as Error).message})`);
     return null;
   }
 
-  // 2. 요청을 봉인해 올린다
+  // 2. Seal and upload the request
   const keys = await target.keys();
   const id = newApprovalId();
   const cwd = typeof payload.cwd === 'string' ? payload.cwd : undefined;
@@ -73,13 +73,13 @@ export async function requestRemoteApproval(payload: Record<string, unknown>, op
       timeoutMs: 5000,
     });
   } catch (err) {
-    log(`원격 승인: 요청을 올리지 못했습니다 (${(err as Error).message})`);
+    log(`remote approval: failed to upload the request (${(err as Error).message})`);
     return null;
   }
 
-  // 3. 결정을 기다린다
+  // 3. Wait for the decision
   const deadline = Date.now() + waitMs;
-  // hook 이 멈춰도(Claude Code 가 끝냄) 폰에 남지 않게 알린다
+  // If the hook is stopped (Claude Code ended it), tell the server so it doesn't linger on the phone
   const cancel = () => api(`/api/approvals/${id}/cancel`, { method: 'POST', timeoutMs: 3000, keepOnAbort: true }).catch(() => undefined);
   while (Date.now() < deadline && !opts.signal?.aborted) {
     let a: Record<string, unknown>;
@@ -87,15 +87,15 @@ export async function requestRemoteApproval(payload: Record<string, unknown>, op
       const ms = Math.min(POLL_MS, Math.max(deadline - Date.now(), 0));
       a = await api(`/api/approvals/${id}/wait?ms=${ms}`, { timeoutMs: ms + 10_000 });
     } catch {
-      await sleep(2000, opts.signal); // 네트워크가 잠깐 끊김 — 다시 묻는다
+      await sleep(2000, opts.signal); // brief network drop — ask again
       continue;
     }
     const status = a.status;
     if (status === 'pending') continue;
     if (status === 'allow' || status === 'deny') {
-      // 서버가 보낸 결정을 믿지 않는다: 계정 키로 서명했는지 확인
+      // Don't trust the decision the server sent: verify it was signed with the account key
       if (!(await verifyDecision(keys, id, status, typeof a.sig === 'string' ? a.sig : ''))) {
-        log(`원격 승인: 서명이 맞지 않는 결정을 받았습니다 (${id}) — 따르지 않고 터미널에서 승인합니다`);
+        log(`remote approval: received a decision with an invalid signature (${id}) — ignoring it and approving in the terminal`);
         return null;
       }
       return status === 'allow' ? { behavior: 'allow' } : { behavior: 'deny', message: DENY_MESSAGE };

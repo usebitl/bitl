@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// 원격 승인 hook (Claude Code PermissionRequest, 동기). bitl install 이 bitl-hook.mjs 와 함께 설치한다.
+// Remote approval hook (Claude Code PermissionRequest, synchronous). bitl install installs it alongside bitl-hook.mjs.
 //
-//   node bitl-approve.mjs [--source claude-code]   (페이로드는 stdin)
+//   node bitl-approve.mjs [--source claude-code]   (payload on stdin)
 //
-// 원격 승인이 켜졌을 때만 (보드의 "원격 승인" 스위치 또는 bitl remote on) 폰의 허용·거부를 기다린다 (기본 10분, $BITL_APPROVAL_WAIT_SEC).
-// 그 밖에는 아무것도 출력하지 않고 바로 끝나 → Claude Code 가 평소처럼 터미널에 승인 창을 띄운다.
-// 폰의 결정은 계정 키 서명을 확인한 뒤에만 따른다 (서버가 승인을 만들어 낼 수 없다). 실패는 모두 "터미널에서 승인"으로.
+// Only when remote approval is on (the board's "remote approval" switch or bitl remote on) does it wait for allow/deny from the phone (default 10 min, $BITL_APPROVAL_WAIT_SEC).
+// Otherwise it prints nothing and exits right away → Claude Code shows its approval prompt in the terminal as usual.
+// The phone's decision is followed only after verifying the account key signature (the server can't forge an approval). Every failure falls back to "approve in the terminal".
 import { appendFileSync, mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -57,5 +57,5 @@ async function main() {
 }
 
 main()
-  .catch((err) => log(`원격 승인: ${err?.stack ?? err}`))
+  .catch((err) => log(`remote approval:${err?.stack ?? err}`))
   .finally(() => process.exit(0));

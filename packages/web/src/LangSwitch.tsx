@@ -1,6 +1,6 @@
 import { LANG_LABEL, LANGS, setLang, t, useLang } from './i18n';
 
-/** 한국어 / English 전환. 고른 언어는 이 브라우저에 기억한다 */
+/** Korean / English switch. The chosen language is remembered in this browser */
 export function LangSwitch({ className = '' }: { className?: string }) {
   const lang = useLang();
   return (

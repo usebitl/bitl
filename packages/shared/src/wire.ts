@@ -1,11 +1,11 @@
-// 서버가 받는 레코드 검증 (zod). 내용 필드는 봉인된 형식만 받는다 — 평문이 실수로라도 저장되지 않게.
+// Validation of records the server receives (zod). Content fields accept only the sealed format — so plaintext is never stored, even by mistake.
 import { z } from 'zod';
 import { SEALED_PATTERN } from './crypto.js';
 import { AgentEventType, AgentSource, WaitingReason } from './events.js';
 import { EVENT_CONTENT_FIELDS, WIRE_VERSION, type WireRecord } from './prepare.js';
 
-/** 봉인된 값 하나. 표시용 필드는 짧아서(최소화 후 500자) 넉넉히 잡아도 이 정도 */
-/** 봉인된 값 한 칸의 최대 길이. 원문 1만 자(한글이면 약 30KB) 를 봉인한 base64url 이 들어가게 */
+/** A single sealed value. Display fields are short (500 chars after minimization), so this is generous enough */
+/** Max length of one sealed value. Fits the base64url of 10,000 sealed chars of plaintext (about 30KB for Korean text) */
 export const SealedValue = z.string().max(64_000).regex(SEALED_PATTERN);
 
 const id = z.string().min(1).max(200);

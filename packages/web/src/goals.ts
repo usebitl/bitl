@@ -2,12 +2,12 @@ import { type ContentKeys, open, seal, toBase64Url } from '@bitl/shared/client';
 import { contentKeys } from './keys';
 
 /**
- * 목표 — 여러 에이전트 카드를 사람이 정한 목적 하나로 묶는다.
- * 제목과 연결한 카드(세션 key) 목록은 한 덩어리로 봉인한다 (AAD = goal:<id>). 서버는 어떤 카드가 한 목표인지 모른다.
- * 고칠 때는 최신 내용에 같은 변경을 다시 적용한다 — 다른 기기가 먼저 고쳤으면(409) 받은 최신본에 다시 적용해 재시도.
+ * Goals — group several agent cards under one purpose set by a person.
+ * The title and the list of linked cards (session keys) are sealed as one blob (AAD = goal:<id>). The server doesn't know which cards share a goal.
+ * Edits re-apply the same change to the latest content — if another device edited first (409), re-apply to the returned latest version and retry.
  */
 
-/** 서버가 주는 그대로 */
+/** As returned by the server */
 export interface StoredGoal {
   id: string;
   data: string;
@@ -19,7 +19,7 @@ export interface StoredGoal {
 
 export interface GoalContent {
   title: string;
-  /** 연결한 카드의 세션 key */
+  /** Session keys of linked cards */
   members: string[];
 }
 
@@ -28,7 +28,7 @@ export interface Goal extends GoalContent {
   version: number;
   createdAt: string;
   closedAt?: string;
-  /** 이 브라우저의 키로 열 수 없음 */
+  /** Cannot be opened with this browser's keys */
   locked?: boolean;
 }
 
@@ -66,8 +66,8 @@ export async function createGoal(c: GoalContent): Promise<void> {
 }
 
 /**
- * 내용 바꾸기: change 를 최신 내용에 적용해 저장한다. 다른 기기가 먼저 고쳤으면 그 최신본에 다시 적용 (최대 3번).
- * 예) 카드 넣기: (c) => ({ ...c, members: [...c.members, key] })
+ * Change content: applies change to the latest content and saves. If another device edited first, re-applies to that latest version (up to 3 times).
+ * e.g. adding a card: (c) => ({ ...c, members: [...c.members, key] })
  */
 export async function changeGoal(goal: Goal, change: (c: GoalContent) => GoalContent): Promise<void> {
   const keys = await requireKeys();
@@ -82,7 +82,7 @@ export async function changeGoal(goal: Goal, change: (c: GoalContent) => GoalCon
   throw new Error('goal update conflict');
 }
 
-/** 마치기·다시 열기 (내용은 그대로) */
+/** Finish / reopen (content unchanged) */
 export async function setGoalClosed(goal: Goal, closed: boolean): Promise<void> {
   let version = goal.version;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -97,6 +97,6 @@ export async function deleteGoal(goal: Goal): Promise<void> {
   await fetch(`/api/goals/${goal.id}`, { method: 'DELETE' });
 }
 
-/** 카드를 목표에 넣기·빼기 */
+/** Add a card to / remove a card from a goal */
 export const toggleMember = (goal: Goal, key: string, on: boolean) =>
   changeGoal(goal, (c) => ({ ...c, members: on ? [...c.members, key] : c.members.filter((m) => m !== key) }));

@@ -1,4 +1,4 @@
-// 서버가 준 암호문 → 화면용 평문 (브라우저, CLI). 풀 수 없는 필드는 비워 두고 locked 로 표시한다.
+// Ciphertext from the server → plaintext for display (browser, CLI). Fields that can't be opened are left empty and marked locked.
 import { type ContentKeys, open, type Sealed } from './crypto.js';
 import type { Session, StoredSession, StoredTimelineItem, StoredTurn, TimelineItem, Turn } from './session.js';
 

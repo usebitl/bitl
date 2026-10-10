@@ -1,20 +1,23 @@
-// npm 패키지(@usebitl/cli, 명령 bitl) 빌드: CLI 를 한 파일로 묶고, hook 어댑터를 복사한다. `npm pack`·`npm publish` 전에 자동 실행 (prepack).
-//   dist/cli.mjs   — packages/cli/src/index.ts 를 묶은 것 (클라우드 전용: 로컬 서버·로컬 MCP 제외)
-//   adapters/      — hook 이 실행하는 파일 (bitl-hook·send·bitl-approve·bitl-agy-watch + dist/core.mjs)
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// Builds the npm package (@usebitl/cli, command bitl). Runs before `npm pack`/`npm publish` (prepack).
+//   dist/cli.mjs   — packages/cli/src/index.ts bundled into one file, including the local server (bitl start)
+//   web/           — the local board UI that bitl start serves
+//   adapters/      — files the hooks run (bitl-hook, send, bitl-approve, bitl-agy-watch + dist/core.mjs)
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
-// esbuild 는 어댑터 패키지가 이미 쓰고 있다
+// esbuild is already used by the adapters package
 const { build } = createRequire(here('../../adapters/package.json'))('esbuild');
 
 const DEFAULT_URL = 'https://api.usebitl.com';
-// 작업 PC 가 서버에 알리는 bitl 버전 (웹의 기기 화면에서 업데이트 안내)
+// bitl version the work PC reports to the server (for update notices on the web devices page)
 const VERSION = JSON.parse(readFileSync(here('package.json'), 'utf8')).version;
 
 rmSync(here('dist'), { recursive: true, force: true });
 rmSync(here('adapters'), { recursive: true, force: true });
+rmSync(here('web'), { recursive: true, force: true });
 
 await build({
   entryPoints: [here('../src/index.ts')],
@@ -23,14 +26,13 @@ await build({
   platform: 'node',
   format: 'esm',
   target: 'node20',
-  // 로컬 서버는 넣지 않는다 (bitl start 는 CLOUD_ONLY 에서 실행 전에 막힌다)
-  external: ['@bitl/server'],
+  // The local server (bitl start) is bundled too; its web UI is built into web/ below
   define: {
-    'process.env.BITL_CLOUD_ONLY': '"1"',
+    'process.env.BITL_NPM_BUILD': '"1"',
     'process.env.BITL_DEFAULT_URL': JSON.stringify(DEFAULT_URL),
     'process.env.BITL_CLIENT_VERSION': JSON.stringify(VERSION),
   },
-  // 묶인 CommonJS 의존성이 require 를 쓸 수 있게
+  // so bundled CommonJS dependencies can use require
   banner: { js: "import { createRequire as __bitlRequire } from 'node:module'; const require = __bitlRequire(import.meta.url);" },
   logLevel: 'warning',
 });
@@ -46,15 +48,32 @@ await build({
   logLevel: 'warning',
 });
 
+// Web UI for bitl start: the local board (src/main.tsx), not the cloud site that packages/web/index.html points to
+const webRoot = here('../../web');
+const { build: viteBuild } = await import(pathToFileURL(createRequire(join(webRoot, 'package.json')).resolve('vite')).href);
+const localEntry = {
+  name: 'bitl-local-entry',
+  transformIndexHtml: {
+    order: 'pre',
+    // In the public repo index.html already points to src/main.tsx
+    handler: (html) => html.replace('/src/cloud/main.tsx', '/src/main.tsx'),
+  },
+};
+await viteBuild({ root: webRoot, logLevel: 'warn', plugins: [localEntry], build: { outDir: here('web'), emptyOutDir: true } });
+await viteBuild({ root: webRoot, configFile: join(webRoot, 'vite.sw.config.ts'), logLevel: 'warn', build: { outDir: here('web') } });
+
+// License text (AGPL-3.0): repo root in the public repo, the export overlay in the private one. npm always packs LICENSE
+copyFileSync(existsSync(here('../../../LICENSE')) ? here('../../../LICENSE') : here('../../../scripts/oss/overlay/LICENSE'), here('LICENSE'));
+
 mkdirSync(here('adapters'), { recursive: true });
 for (const f of ['bitl-hook.mjs', 'send.mjs', 'bitl-approve.mjs', 'bitl-agy-watch.mjs']) {
   copyFileSync(here(`../../adapters/${f}`), here(`adapters/${f}`));
 }
-// 줄바꿈은 LF 로: Windows 체크아웃(CRLF) 그대로 게시하면 macOS·Linux 에서 #!/usr/bin/env node\r 가 실행되지 않는다
+// Use LF line endings: publishing a Windows checkout (CRLF) as is makes #!/usr/bin/env node\r fail on macOS/Linux
 const files = (dir) =>
   readdirSync(here(dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
-for (const f of [...files('dist'), ...files('adapters'), ...files('bin'), 'package.json', 'README.md']) {
+for (const f of [...files('dist'), ...files('adapters'), ...files('bin'), 'package.json', 'README.md', 'LICENSE']) {
   const text = readFileSync(here(f), 'utf8');
   if (text.includes('\r\n')) writeFileSync(here(f), text.replace(/\r\n/g, '\n'));
 }
-console.log('bitl npm 패키지 빌드 완료: dist/cli.mjs, adapters/');
+console.log('bitl npm package built: dist/cli.mjs, adapters/');

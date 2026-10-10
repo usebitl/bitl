@@ -8,7 +8,6 @@ import { SessionCard } from './SessionCard';
 import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
-import { BetaBadge } from './BetaBadge';
 import { GlobeIcon } from './Icons';
 import { EndedSection } from './EndedSection';
 import { GoalDialog, GoalFilter, GoalsBar, goalSessions, PlusIcon } from './GoalViews';
@@ -22,7 +21,7 @@ const COLUMNS: { id: BoardColumn; dot: string }[] = [
   { id: 'rest', dot: 'bg-zinc-400' },
 ];
 
-/** 고정한 카드가 먼저. 그다음 나를 기다리는 작업은 오래 기다린 순, 나머지는 최근 활동 순 */
+/** Pinned cards first. Then tasks waiting for you, longest-waiting first; the rest by most recent activity */
 function sortFor(col: BoardColumn) {
   const byTime =
     col === 'attention'
@@ -32,8 +31,8 @@ function sortFor(col: BoardColumn) {
 }
 
 /**
- * 상세는 URL hash(#s=<key>)로 연다 — 모바일 웹뷰에서 뒤로 가기로 닫힌다.
- * 열린 상태에서 다른 카드를 누르면 기록을 쌓지 않고 바꿔치기해서, 뒤로 가기 한 번이면 보드로 돌아온다.
+ * The detail view opens via the URL hash (#s=<key>) — so Back closes it in mobile webviews.
+ * Tapping another card while it is open replaces the entry instead of pushing one, so a single Back returns to the board.
  */
 function useSelectedKey(): [string | null, (key: string | null) => void] {
   const read = () => {
@@ -41,7 +40,7 @@ function useSelectedKey(): [string | null, (key: string | null) => void] {
     return m?.[1] ? decodeURIComponent(m[1]) : null;
   };
   const [key, setKey] = useState(read);
-  const pushed = useRef(false); // 우리가 기록을 하나 쌓았는지 (주소로 바로 열린 경우는 false)
+  const pushed = useRef(false); // whether we pushed a history entry (false when opened directly via the URL)
   useEffect(() => {
     const onHash = () => {
       const k = read();
@@ -62,7 +61,7 @@ function useSelectedKey(): [string | null, (key: string | null) => void] {
       }
       setKey(next);
     } else if (read()) {
-      if (pushed.current) history.back(); // hashchange 가 key 를 비운다
+      if (pushed.current) history.back(); // hashchange clears key
       else {
         history.replaceState(null, '', base);
         setKey(null);
@@ -73,8 +72,8 @@ function useSelectedKey(): [string | null, (key: string | null) => void] {
 }
 
 /**
- * 실시간 연결에 문제가 있을 때만 알린다 (평소 연결됨은 표시하지 않는다).
- * 처음 연결·잠깐의 재연결로 깜빡이지 않게 3초 넘게 이어질 때만 보인다
+ * Shown only when the live connection has a problem (a normal connection is not shown).
+ * Appears only after more than 3 seconds, so the initial connect or a brief reconnect does not flicker
  */
 function useConnectionIssue(connection: Connection): 'connecting' | 'offline' | null {
   const [shown, setShown] = useState<'connecting' | 'offline' | null>(null);
@@ -91,7 +90,7 @@ function useConnectionIssue(connection: Connection): 'connecting' | 'offline' | 
 
 const MODE_STORAGE_KEY = 'bitl.detailMode';
 
-/** 상세 보기 방식(오른쪽 패널 / 넓게)을 이 브라우저에 기억한다 */
+/** Remembers the detail view mode (right panel / wide) in this browser */
 function useDetailMode(): [DetailMode, () => void] {
   const [mode, setMode] = useState<DetailMode>(() => {
     try {
@@ -106,7 +105,7 @@ function useDetailMode(): [DetailMode, () => void] {
       try {
         localStorage.setItem(MODE_STORAGE_KEY, next);
       } catch {
-        // 저장 불가(사생활 보호 모드 등) — 이번 세션만 유지
+        // storage unavailable (private mode, etc.) — keep for this session only
       }
       return next;
     });
@@ -115,45 +114,47 @@ function useDetailMode(): [DetailMode, () => void] {
 }
 
 /**
- * 보드에 끼울 것 — 로컬 모드는 아무것도 넘기지 않는다.
- * 다른 서버(로그인·기기 연결이 있는 곳)는 여기에 안내·메뉴 항목·창을 더한다.
+ * Things to plug into the board — local mode passes none.
+ * Other servers (with sign-in and device pairing) add notices, menu items and dialogs here.
  */
 export interface BoardProps {
-  /** 이 브라우저의 내용 키 (undefined: 읽는 중, null: 없음 — 카드 내용이 🔒) */
+  /** This browser's content keys (undefined: loading, null: none — card contents show 🔒) */
   keys: ContentKeys | null | undefined;
-  /** 카드를 읽기 시작해도 되는가 (로그인 전이면 false). 기본 true */
+  /** Whether cards may start loading (false before sign-in). Default true */
   enabled?: boolean;
-  /** 새로 만들거나 고칠 수 없는 상태 (목표) */
+  /** Cannot create or edit (goals) */
   readonly?: boolean;
-  /** 머리 아래 안내 줄 */
+  /** Next to the logo (the cloud site's beta badge) */
+  badge?: ReactNode;
+  /** Notice line below the header */
   banners?: ReactNode;
-  /** 🔒 안내. showWhenNoKeys: 키가 없을 때 보이는가 (기본 true), hint: 뒤에 붙는 설명 (기본: bitl pair 안내) */
+  /** 🔒 notice. showWhenNoKeys: shown when there are no keys (default true); hint: trailing explanation (default: bitl pair instructions) */
   lockedNotice?: { showWhenNoKeys?: boolean; hint?: ReactNode };
-  /** 카드 열 위 (처음 쓰는 사람 안내 등) */
+  /** Above the card columns (first-time user guidance, etc.) */
   top?: (sessions: Session[]) => ReactNode;
-  /** ☰ 메뉴: items 는 언어 앞, footer 는 언어 뒤. close() 로 메뉴를 닫는다. dot: 메뉴 단추에 점 */
+  /** ☰ menu: items go before the language switch, footer after it. close() closes the menu. dot: a dot on the menu button */
   menu?: { items?: (close: () => void) => ReactNode; footer?: (close: () => void) => ReactNode; dot?: boolean };
-  /** 보드 위에 여는 창 */
+  /** Dialogs opened over the board */
   overlays?: ReactNode;
 }
 
-/** ☰ 메뉴 항목 모양 (button·a 공통) */
+/** ☰ menu item style (shared by button and a) */
 export const MENU_ITEM = 'flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-zinc-700 active:bg-zinc-100 dark:text-zinc-200 dark:active:bg-zinc-800';
 export const MENU_ICON = 'size-[18px] text-zinc-500 dark:text-zinc-400';
 
-export function Board({ keys, enabled = true, readonly = false, banners, lockedNotice, top, menu, overlays }: BoardProps) {
+export function Board({ keys, enabled = true, readonly = false, badge, banners, lockedNotice, top, menu, overlays }: BoardProps) {
   const { sessions, approvals, goals, connection } = useSessions(enabled ? keys : undefined);
-  // 목표: 고르면 그 목표의 카드만 보인다. 창: 새로 만들기(preselect: 처음부터 넣을 카드) 또는 편집
+  // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
   const [goalDialog, setGoalDialog] = useState<{ goal?: Goal; preselect?: string[] } | null>(null);
   const activeGoal = goalId ? goals.find((g) => g.id === goalId) : undefined;
-  // 원격 승인: 카드마다 가장 오래 기다린 요청 하나
+  // Remote approval: the longest-waiting request per card
   const approvalFor = useMemo(() => {
     const map = new Map<string, Approval>();
     for (const a of [...approvals].sort((x, y) => x.createdAt.localeCompare(y.createdAt))) if (!map.has(a.sessionKey)) map.set(a.sessionKey, a);
     return map;
   }, [approvals]);
-  // 보드에 카드가 없는 요청 (카드가 아직 안 왔거나 보관·종료로 숨김) — 놓치지 않게 위에 따로
+  // Requests with no card on the board (card not arrived yet, or hidden as archived/ended) — shown separately on top so they are not missed
   const orphanApprovals = useMemo(() => {
     const shown = new Set(sessions.filter((s) => !s.archived && s.status !== 'ended').map((s) => s.key));
     return [...approvalFor.values()].filter((a) => !shown.has(a.sessionKey));
@@ -165,7 +166,7 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
 
   const byColumn = useMemo(() => {
     const map: Record<BoardColumn, Session[]> = { attention: [], running: [], review: [], rest: [] };
-    // 목표로 거르면 그 목표의 카드만. 종료된 카드는 열이 아니라 아래 "종료" 구역에
+    // When filtered by a goal, only its cards. Ended cards go in the "Ended" section below, not the columns
     const members = activeGoal ? new Set(activeGoal.members) : null;
     for (const s of sessions) {
       if (s.archived || s.status === 'ended' || (members && !members.has(s.key))) continue;
@@ -180,9 +181,9 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
       .filter((s) => !s.archived && s.status === 'ended' && (!members || members.has(s.key)))
       .sort((a, b) => (b.endedAt ?? b.statusAt).localeCompare(a.endedAt ?? a.statusAt));
   }, [sessions, activeGoal]);
-  // 목표로 걸러 보는 중에도 "나를 기다림" 수(제목·배지·알림)는 전체 기준
+  // Even while filtered by a goal, the "waiting for you" count (title, badge, notifications) covers everything
   const attentionAll = useMemo(() => sessions.filter((s) => !s.archived && columnOf(s.status) === 'attention').length, [sessions]);
-  // 고른 목표가 마쳐지거나 지워지면 거르기를 푼다
+  // Clear the filter when the selected goal is finished or deleted
   useEffect(() => {
     if (goalId && !activeGoal) setGoalId(null);
   }, [goalId, activeGoal, goals]);
@@ -191,7 +192,7 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
   const attention = attentionAll;
   useOpenFromNotification(select);
   const lockedCount = useMemo(() => sessions.filter((s) => s.locked).length, [sessions]);
-  // 목표 만들기·고치기: 키가 있고 읽기 전용이 아닐 때
+  // Creating/editing goals: when keys exist and not read-only
   const canEdit = Boolean(keys) && !readonly;
   const showLocked = (keys === null && lockedNotice?.showWhenNoKeys !== false) || lockedCount > 0;
 
@@ -201,13 +202,13 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
   }, [attention]);
 
   return (
-    // side 패널이 열리면 보드가 패널 폭만큼 비켜서 계속 보인다
+    // When the side panel opens, the board shifts aside by the panel width and stays visible
     <div className={`px-4 pb-10 sm:px-6 ${selected && mode === 'side' ? SIDE_PANEL_GUTTER : 'mx-auto max-w-[1600px]'}`}>
       <header className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
         <h1 className="text-lg font-bold tracking-tight">
           <a href="/" className="flex items-center gap-2">
             <Logo size={24} />
-            BITL <BetaBadge /> <span className="hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
+            BITL {badge} <span className="hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
           </a>
         </h1>
         {attention > 0 && (
@@ -216,7 +217,7 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
             <span className="hidden sm:inline">{t('app.waitingLong', { n: attention })}</span>
           </span>
         )}
-        {/* 한 줄에 꼭 필요한 것만 (연결 문제·목표), 나머지는 ☰ 메뉴로 — PC·휴대폰 같은 모양. 원격 승인 켜짐도 메뉴 안에 표시 */}
+        {/* Only the essentials on one line (connection issues, goals); the rest goes in the ☰ menu — same layout on PC and phone. Remote approval being on is also shown inside the menu */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {connIssue && (
             <span className="flex items-center gap-1.5 text-sm" title={connIssue === 'connecting' ? t('app.conn.connecting') : t('app.conn.down')}>
@@ -247,7 +248,7 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
         )}
       </header>
 
-      {/* 열 수는 화면이 아니라 보드 폭 기준(container query) — 패널이 열려 좁아져도 자연스럽게 줄어든다 */}
+      {/* Column count follows the board width, not the screen (container query) — it shrinks naturally when the panel opens */}
       {top?.(sessions)}
 
       {orphanApprovals.length > 0 && (
@@ -331,7 +332,7 @@ export function Board({ keys, enabled = true, readonly = false, banners, lockedN
   );
 }
 
-/** 머리의 ☰ 메뉴 (PC·휴대폰 공통): 끼운 항목들과 언어 */
+/** The header ☰ menu (same on PC and phone): plugged-in items and language */
 function AppMenu({ items, footer, dot = false }: NonNullable<BoardProps['menu']>) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);

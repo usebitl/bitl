@@ -1,6 +1,6 @@
-// CLI 출력 문구 — 한국어(기준)·영어. 웹(packages/web/src/i18n)과 같은 방식: en 은 ko 의 키를 빠짐없이 가져야 컴파일된다.
-// 언어: BITL_LANG(ko|en) → LC_ALL / LC_MESSAGES / LANG → 운영체제 로캘(Windows 는 환경 변수가 없어 Intl 로) → 그 밖에는 영어.
-// {name} 은 값 자리.
+// CLI output strings — Korean (source) and English. Same approach as the web (packages/web/src/i18n): en must have every ko key to compile.
+// Language: BITL_LANG (ko|en) → LC_ALL / LC_MESSAGES / LANG → OS locale (via Intl on Windows, which lacks the env vars) → otherwise English.
+// {name} is a placeholder.
 
 export type Lang = 'ko' | 'en';
 
@@ -16,7 +16,6 @@ const ko = {
   'usage.loginArgs': '--url <주소> [--name 이름] [--no-browser]',
   'usage.loginDefault': '이 PC 를 계정에 연결 (브라우저에서 승인, 기본 {url})',
   'usage.login': '이 PC 를 클라우드 계정에 연결 (브라우저에서 승인)',
-  'usage.logoutCloud': '연결 해제',
   'usage.logout': '연결 해제 → 다시 로컬 서버로',
   'usage.installClaude': 'Claude Code hook 등록 (기본: ~/.claude/settings.json)',
   'usage.installCodex': 'Codex hook 등록 (~/.codex/config.toml)',
@@ -34,7 +33,7 @@ const ko = {
   'err.noDesktop': 'claude-desktop(로컬 MCP)은 이 패키지에 없습니다. claude.ai 커넥터를 쓰세요: https://usebitl.com/app',
   'err.unknownTarget': '지원하지 않는 대상: {target} — {list}',
   'err.none': '(없음)',
-  'err.noStart': 'bitl start(로컬 서버)는 이 패키지에 없습니다. https://usebitl.com 에서 쓰세요.',
+  'err.nodeSqlite': 'bitl start 는 Node.js 22.5 이상이 필요합니다 (node:sqlite). 지금: {version}',
   'err.loginUrl': '연결할 서비스 주소를 지정하세요: bitl login --url https://…',
   'err.agySpace': 'Antigravity 는 공백이 있는 경로를 실행하지 못합니다: {path}',
 
@@ -83,7 +82,6 @@ const ko = {
   'login.next': '  hook 이 아직 없다면: bitl install claude',
   'logout.notConnected': '클라우드 계정에 연결돼 있지 않습니다 (로컬 모드).',
   'logout.done': '연결 해제: {url} ({name}). 이제 이 PC 의 로컬 서버로 보냅니다.',
-  'logout.doneCloud': '연결 해제: {url} ({name}). 이 PC 의 에이전트 작업은 더 이상 보내지 않습니다.',
 } as const;
 
 export type MessageKey = keyof typeof ko;
@@ -100,7 +98,6 @@ const en: Record<MessageKey, string> = {
   'usage.loginArgs': '--url <URL> [--name NAME] [--no-browser]',
   'usage.loginDefault': 'Connect this PC to your account (approve in the browser; default {url})',
   'usage.login': 'Connect this PC to your cloud account (approve in the browser)',
-  'usage.logoutCloud': 'Disconnect',
   'usage.logout': 'Disconnect → back to the local server',
   'usage.installClaude': 'Add Claude Code hooks (default: ~/.claude/settings.json)',
   'usage.installCodex': 'Add Codex hooks (~/.codex/config.toml)',
@@ -118,7 +115,7 @@ const en: Record<MessageKey, string> = {
   'err.noDesktop': 'claude-desktop (local MCP) is not in this package. Use the claude.ai connector: https://usebitl.com/app',
   'err.unknownTarget': 'Unsupported target: {target} — {list}',
   'err.none': '(none)',
-  'err.noStart': 'bitl start (local server) is not in this package. Use https://usebitl.com.',
+  'err.nodeSqlite': 'bitl start needs Node.js 22.5 or later (node:sqlite). Current: {version}',
   'err.loginUrl': 'Give the service URL to connect to: bitl login --url https://…',
   'err.agySpace': "Antigravity can't run a path that contains spaces: {path}",
 
@@ -167,16 +164,15 @@ const en: Record<MessageKey, string> = {
   'login.next': '  If you have no hooks yet: bitl install claude',
   'logout.notConnected': 'Not connected to a cloud account (local mode).',
   'logout.done': 'Disconnected: {url} ({name}). This PC now sends to its local server.',
-  'logout.doneCloud': 'Disconnected: {url} ({name}). Agent work on this PC is no longer sent.',
 };
 
 const DICT: Record<Lang, Record<MessageKey, string>> = { ko, en };
 
-/** 환경에서 언어를 고른다 (테스트를 위해 env·로캘을 받을 수 있다) */
+/** Picks the language from the environment (env and locale can be passed in for tests) */
 export function detectLang(env: NodeJS.ProcessEnv = process.env, systemLocale = Intl.DateTimeFormat().resolvedOptions().locale): Lang {
   const forced = env.BITL_LANG?.trim().toLowerCase();
   if (forced === 'ko' || forced === 'en') return forced;
-  // POSIX 로캘: 앞선 것이 이긴다. 'C'·'POSIX' 는 언어 정보가 없으니 다음으로
+  // POSIX locale: earlier wins. 'C' and 'POSIX' carry no language, so move on
   for (const v of [env.LC_ALL, env.LC_MESSAGES, env.LANG]) {
     const s = v?.trim();
     if (!s || s === 'C' || s === 'POSIX' || s.startsWith('C.')) continue;
@@ -185,7 +181,7 @@ export function detectLang(env: NodeJS.ProcessEnv = process.env, systemLocale = 
   return systemLocale.toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }
 
-/** 지금 언어 — 매번 환경을 본다 (BITL_LANG 을 바꿔 가며 테스트할 수 있게) */
+/** Current language — reads the environment every time (so tests can switch BITL_LANG) */
 export const lang = (): Lang => detectLang();
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
@@ -193,5 +189,5 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
   return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
 }
 
-/** 테스트용: 두 사전 */
+/** For tests: both dictionaries */
 export const messages = { ko, en };

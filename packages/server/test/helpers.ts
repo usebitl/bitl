@@ -1,4 +1,4 @@
-// 테스트용: 어댑터처럼 원본을 봉인해 보내고, 브라우저처럼 풀어서 확인한다
+// For tests: seal raw input and send it like the adapter, then open it like the browser to check
 import {
   deriveKeys,
   openSession,
@@ -14,10 +14,10 @@ import { prepareRaw } from '@bitl/shared/node';
 
 export const keys = await deriveKeys(new Uint8Array(32).fill(7));
 
-/** 원본 → 전송 레코드 (git·트랜스크립트 부가 정보는 끈다) */
+/** Raw → wire record (git/transcript extras disabled) */
 export async function wire(rec: RawRecord): Promise<WireRecord> {
   const r = await prepareRaw(rec, { keys, enrich: false });
-  if (!r) throw new Error(`정규화 실패: ${JSON.stringify(rec)}`);
+  if (!r) throw new Error(`normalize failed: ${JSON.stringify(rec)}`);
   return r;
 }
 

@@ -1,6 +1,6 @@
 import { type EventContent, type Sealed, type Signal, type StoredSession, sessionKey } from '@bitl/shared';
 
-/** 이벤트 적용 결과 턴 테이블에 반영할 변화. prompt·result 는 암호문 그대로 */
+/** Turn-table change resulting from applying an event. prompt/result stay ciphertext */
 export type TurnOp =
   | { op: 'start'; turnId?: string; prompt?: Sealed; at: string }
   | { op: 'end'; turnId?: string; result?: Sealed; status: 'done' | 'error'; at: string }
@@ -8,9 +8,9 @@ export type TurnOp =
 
 export const STALE_AFTER_MS = 10 * 60 * 1000;
 /**
- * 에이전트는 PreToolUse 직후 PermissionRequest 를 보내는데 두 async hook 이 수십 ms 차이로 동시에 떠서
- * PreToolUse 가 더 늦은 시각으로 찍히기도 한다 (Codex 에서 18ms 차이 확인). 권한 대기 직후 이만큼 안에
- * 온 도구 시작은 같은 도구의 PreToolUse 로 보고 대기를 유지한다. 승인 후엔 PostToolUse 가 대기를 푼다
+ * The agent sends PermissionRequest right after PreToolUse, but the two async hooks fire within tens of ms of each other,
+ * so PreToolUse is sometimes stamped later (an 18 ms gap seen in Codex). A tool start arriving within this window
+ * after a permission wait is treated as that tool's PreToolUse and the wait is kept. After approval, PostToolUse clears it
  */
 export const PERMISSION_RACE_MS = 2000;
 
@@ -32,13 +32,13 @@ function newSession(e: Signal): StoredSession {
 }
 
 /**
- * 세션 상태 머신. 순수 함수 — 이전 세션과 이벤트를 받아 다음 세션을 돌려준다.
+ * Session state machine. Pure function — takes the previous session and an event, returns the next session.
  *
- * 서버는 내용을 읽지 못한다: 상태는 신호(e)만 보고 정하고, 내용(c, 암호문)은 알맞은 칸에 옮겨 담기만 한다.
- * 값이 있는지 없는지만 본다 (예: 응답이 있으면 lastMessage 를 그 암호문으로).
+ * The server can't read content: status is decided from the signal (e) alone, and content (c, ciphertext) is just copied into the right field.
+ * Only presence is checked (e.g. if there's a response, lastMessage becomes that ciphertext).
  *
- * hook 은 async 로 실행되어 도착 순서가 뒤바뀔 수 있다 (예: Stop 이 마지막 PostToolUse 보다 먼저 도착).
- * 그래서 상태를 마지막으로 바꾼 시각(statusAt)보다 이른 이벤트는 카운터만 갱신하고 상태는 바꾸지 않는다.
+ * Hooks run async, so arrival order can flip (e.g. Stop arrives before the last PostToolUse).
+ * So events older than the last status change (statusAt) only update counters, not the status.
  */
 export function applyEvent(
   prev: StoredSession | undefined,
@@ -52,8 +52,8 @@ export function applyEvent(
   const isReport = e.nativeType.startsWith('report:');
 
   /**
-   * refresh: 같은 상태라도 기준 시각을 새로 잡는다.
-   * 예) 대화에서 턴이 또 끝남(needs_review → needs_review), 새 질문으로 다시 대기 — "N분 전 완료/N분째 대기"가 맞게 보이도록
+   * refresh: reset the reference time even if the status is unchanged.
+   * e.g. another turn ends in a chat (needs_review → needs_review), or waiting again on a new question — so "done N min ago / waiting for N min" stays correct
    */
   const setStatus = (status: StoredSession['status'], refresh = false) => {
     if (late || (s.status === status && !refresh)) return;
@@ -61,21 +61,21 @@ export function applyEvent(
     s.statusAt = e.at;
     if (status !== 'waiting_for_you') s.waitingReason = undefined;
   };
-  /** 내용 칸 갱신. undefined 면 비운다 */
+  /** Content field updates. undefined clears the field */
   const put = (field: keyof StoredSession['enc'], value: Sealed | undefined) => {
     if (value === undefined) delete s.enc[field];
     else s.enc[field] = value;
   };
 
   if (e.at > s.lastEventAt) s.lastEventAt = e.at;
-  // 작업 위치·부가 정보는 어댑터가 PC 에서 구해 보낸다 (git 저장소 기준 프로젝트 이름, 브랜치, ai-title)
+  // The working directory and extra info come from the adapter on the PC (project name from the git repo, branch, ai-title)
   for (const field of ['cwd', 'project', 'gitBranch', 'aiTitle', 'model'] as const) if (c[field]) put(field, c[field]);
 
-  // 서브에이전트 안에서 일어난 이벤트는 부모 세션의 턴 상태를 바꾸지 않는다
+  // Events from inside a subagent don't change the parent session's turn state
   const fromSubagent = Boolean(e.agentId) && e.type !== 'subagent_start' && e.type !== 'subagent_end';
 
-  // 상태 보고(MCP)에 새 사용자 요청이 담겨 오면 그 요청을 새 턴으로 연다 — 같은 요청인지는 태그로 비교.
-  // Claude Desktop 채팅은 hook 이 없어 응답 끝의 보고 한 번으로 "요청 → 응답" 한 턴을 기록한다.
+  // If a status report (MCP) carries a new user request, open it as a new turn — sameness is compared by tag.
+  // Claude Desktop chats have no hooks, so a single report at the end of a reply records one "request → response" turn.
   if (e.requestTag && e.type !== 'prompt' && e.requestTag !== s.lastPromptTag) {
     s.lastPromptTag = e.requestTag;
     put('lastPrompt', c.request);
@@ -92,7 +92,7 @@ export function applyEvent(
     case 'prompt': {
       if (fromSubagent) break;
       setStatus('running');
-      // 상태 보고의 start: text 는 작업 제목, request 는 사용자의 실제 요청
+      // Status report start: text is the task title, request is the user's actual request
       const prompt = c.request ?? c.text;
       put('lastPrompt', prompt);
       s.lastPromptTag = e.requestTag;
@@ -116,24 +116,24 @@ export function applyEvent(
     }
 
     case 'tool_end':
-      // 권한 승인 후 도구가 실행 완료됨 → 다시 running
+      // Tool finished after permission was granted → back to running
       if (s.status === 'waiting_for_you' || s.status === 'stale' || s.status === 'idle') setStatus('running');
       break;
 
     case 'waiting':
       if (e.waitingReason === 'idle') {
-        // idle_prompt: 턴 종료 후 입력을 기다리는 중. 승인 대기보다는 "검토 필요"에 가깝다
+        // idle_prompt: waiting for input after the turn ended. Closer to "needs review" than to awaiting approval
         if (s.status !== 'waiting_for_you') setStatus('needs_review');
         break;
       }
       setStatus('waiting_for_you', true);
       if (!late) {
         s.waitingReason = e.waitingReason;
-        // 무엇을 기다리는지: 도구(권한·질문) 또는 보고에 담긴 설명(MCP·수동 작업의 "확인이 필요해…")
+        // What it's waiting on: the tool (permission/question) or the description in the report (an MCP/manual task's "need confirmation…")
         const act = c.activity ?? c.text;
         if (act) put('currentActivity', act);
       }
-      // 상태 보고의 waiting 은 "응답을 질문으로 끝냄" — 그 턴의 결과로 남긴다
+      // A status report's waiting means "the reply ended with a question" — keep it as that turn's result
       if (isReport) {
         if (!late && c.text) put('lastMessage', c.text);
         turns.push({ op: 'end', turnId: e.turnId, result: c.text, status: 'done', at: e.at });
@@ -151,7 +151,7 @@ export function applyEvent(
       break;
 
     case 'subagent_start':
-      // agent_type 이 빈 SubagentStart/Stop 은 Claude Code 내부 작업이라 보드에 표시하지 않는다
+      // SubagentStart/Stop with an empty agent_type are Claude Code internals and aren't shown on the board
       if (e.agentNamed) s.subagentsRunning += 1;
       break;
 
@@ -178,21 +178,21 @@ export function applyEvent(
       break;
 
     case 'notice':
-      // CwdChanged 의 새 위치는 위에서 c.cwd 로 반영됐다
+      // CwdChanged's new location was already applied above via c.cwd
       break;
   }
 
   return { session: s, turns };
 }
 
-/** running 인데 오래 무소식이면 stale. 대기 상태는 사람이 원인이라 stale 로 보지 않는다. */
+/** running with no news for a long time → stale. Waiting states are on the human, so they never go stale. */
 export function markStale(s: StoredSession, now: Date, afterMs = STALE_AFTER_MS): StoredSession | null {
   if (s.status !== 'running') return null;
   if (now.getTime() - Date.parse(s.lastEventAt) < afterMs) return null;
   return { ...s, status: 'stale', statusAt: now.toISOString() };
 }
 
-/** 사용자가 카드에서 "확인"을 누름 */
+/** The user acknowledged the card */
 export function acknowledge(s: StoredSession, now: Date): StoredSession | null {
   if (!['needs_review', 'error', 'stale'].includes(s.status)) return null;
   return { ...s, status: 'idle', statusAt: now.toISOString(), waitingReason: undefined };

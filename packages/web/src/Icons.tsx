@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
 /**
- * 선 아이콘 (24 칸, 선 1.7, 글자색). 이모지는 운영체제마다 모양·색이 달라 화면에서 튀어서 직접 그린다.
- * 빨간색은 휴대폰 아이콘의 알림 점 하나 — BITL 의 "내 차례" 신호.
+ * Line icons (24 grid, 1.7 stroke, text color). Emoji look different on each OS and stand out, so we draw our own.
+ * The only red is the notification dot on the phone icon — BITL's "your turn" signal.
  */
 function Icon({ children, className = 'size-[18px]' }: { children: ReactNode; className?: string }) {
   return (
@@ -14,7 +14,7 @@ function Icon({ children, className = 'size-[18px]' }: { children: ReactNode; cl
 
 type P = { className?: string };
 
-/** 에이전트 연결: 노트북 + 터미널 프롬프트 (소개 페이지 1단계와 같은 결) */
+/** Agent connection: laptop + terminal prompt (same style as step 1 on the landing page) */
 export const ConnectIcon = (p: P) => (
   <Icon {...p}>
     <rect x="3" y="4" width="18" height="12" rx="2" />
@@ -29,7 +29,7 @@ export const BellIcon = (p: P) => (
   </Icon>
 );
 
-/** 휴대폰 + 빨간 알림 점 (소개 페이지 "어디서나 보고, 알림 받기"와 같은 모양) */
+/** Phone + red notification dot (same shape as the landing page's "see it anywhere, get notified") */
 export const PhoneIcon = (p: P) => (
   <Icon {...p}>
     <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
@@ -52,7 +52,7 @@ export const GlobeIcon = (p: P) => (
   </Icon>
 );
 
-/** 새 소식: 반짝임 */
+/** News: sparkle */
 export const NewsIcon = (p: P) => (
   <Icon {...p}>
     <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
@@ -60,7 +60,7 @@ export const NewsIcon = (p: P) => (
   </Icon>
 );
 
-/** 내려받기 (업데이트) */
+/** Download (update) */
 export const UpdateIcon = (p: P) => (
   <Icon {...p}>
     <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />

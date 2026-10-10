@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { Driver, Row } from './types.js';
 
 /**
- * 웹 푸시 구독 (PWA 알림). 브라우저가 준 push 서비스 주소와 암호화 키를 계정별로 보관한다.
- * 내용은 알림을 보낼 때 이 키로 암호화된다 (RFC 8291) — push 서비스(Google·Apple 등)는 알림 내용을 모른다.
+ * Web push subscriptions (PWA notifications). Stores the push service endpoint and encryption keys from the browser, per account.
+ * Payloads are encrypted with these keys when sent (RFC 8291) — the push service (Google, Apple, etc.) can't read them.
  */
 export const PUSH_SCHEMA = `
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -26,13 +26,13 @@ export interface PushSubscriptionRow {
 }
 
 const now = () => new Date().toISOString();
-/** 계속 실패하는 구독은 지운다 (브라우저가 구독을 버렸거나 기기가 사라짐) */
+/** Subscriptions that keep failing are deleted (the browser dropped it or the device is gone) */
 const MAX_FAILURES = 5;
 
 export class PushStore {
   constructor(private readonly db: Driver) {}
 
-  /** 같은 브라우저(endpoint)가 다시 구독하면 그 계정 것으로 덮어쓴다 */
+  /** If the same browser (endpoint) subscribes again, it's reassigned to that account */
   async subscribe(accountId: string, sub: { endpoint: string; p256dh: string; auth: string }): Promise<void> {
     await this.db.transaction(async (q) => {
       await q('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]);
@@ -67,7 +67,7 @@ export class PushStore {
     await this.db.transaction((q) => q('UPDATE push_subscriptions SET last_ok_at = ?, failures = 0 WHERE id = ?', [now(), id]));
   }
 
-  /** 실패를 센다. gone(404·410: 구독이 없어짐)이면 바로, 아니면 여러 번 실패하면 지운다 */
+  /** Counts a failure. Deletes right away if gone (404/410: subscription no longer exists), otherwise after repeated failures */
   async markFailed(id: string, gone: boolean) {
     await this.db.transaction(async (q) => {
       if (gone) await q('DELETE FROM push_subscriptions WHERE id = ?', [id]);

@@ -4,8 +4,8 @@ import { type Approval, decide } from './approvals';
 import { t } from './i18n';
 
 /**
- * 원격 승인 요청: 무엇을 하려는지 보여주고 허용·거부. 카드와 상세 화면에서 쓴다.
- * 결정은 이 기기의 키로 서명된다 — 키가 없으면 버튼을 막는다 (PC 가 서명 없는 결정을 따르지 않는다).
+ * Remote approval request: shows what the agent wants to do, with allow/deny. Used in the card and the detail view.
+ * Decisions are signed with this device's key — without a key the buttons are disabled (the PC ignores unsigned decisions).
  */
 export function ApprovalBox({ approval, keys, now, full }: { approval: Approval; keys: ContentKeys | null | undefined; now: number; full?: boolean }) {
   const [busy, setBusy] = useState<'allow' | 'deny'>();

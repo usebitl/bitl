@@ -1,10 +1,10 @@
-// 어댑터 → 서버 전송 형식 (v2): 서버가 읽는 신호(평문) + 화면 표시용 내용(암호문).
+// Adapter → server wire format (v2): signals the server reads (plaintext) + display content (ciphertext).
 //
-// 1단계 최소화: 원본 페이로드(raw), 도구 입력 전체(수정한 코드 등), 도구 결과(명령 출력 등)는 보내지 않는다.
-//   남기는 것은 도구 이름·한 줄 요약, 프롬프트·응답 앞부분뿐이다.
-// 2단계 암호화: 남은 내용은 필드마다 봉인한다. 서버의 상태 머신은 신호만으로 돌아간다.
+// Step 1, minimize: the raw payload, full tool input (edited code etc.) and tool results (command output etc.) are not sent.
+//   All that remains is the tool name, a one-line summary, and the beginning of prompts/responses.
+// Step 2, encrypt: the remaining content is sealed per field. The server's state machine runs on signals alone.
 //
-// zod 없이 동작해야 한다 — 어댑터 번들과 브라우저에서 쓴다. 서버 쪽 검증은 wire.ts.
+// Must work without zod — used in the adapter bundle and the browser. Server-side validation is in wire.ts.
 
 import type { Sealed, Sealer } from './crypto.js';
 import type { AgentEvent } from './events.js';
@@ -14,11 +14,11 @@ import { sessionKey } from './session.js';
 
 export const WIRE_VERSION = 2;
 
-/** 이벤트에 실려 오는 표시용 내용 (전부 암호문으로 전송) */
+/** Display content carried by events (all sent as ciphertext) */
 export const EVENT_CONTENT_FIELDS = [
-  'title', // prompt: 카드 제목 (앞부분 한 줄)
-  'text', // prompt: 지시 / turn_end: 응답 / error·waiting·progress: 설명 — 앞부분만
-  'request', // 상태 보고(MCP): 이번 응답이 답한 요청
+  'title', // prompt: card title (first line)
+  'text', // prompt: instruction / turn_end: response / error·waiting·progress: description — beginning only
+  'request', // status report (MCP): the request this response answered
   'activity', // "[Explore] Bash: pnpm test"
   'tool',
   'toolSummary',
@@ -32,23 +32,23 @@ export const EVENT_CONTENT_FIELDS = [
 export type EventContentField = (typeof EVENT_CONTENT_FIELDS)[number];
 export type EventContent<T = string> = Partial<Record<EventContentField, T>>;
 
-/** 서버가 읽는 신호. 상태 머신에 필요한 것만 */
+/** Signals the server reads. Only what the state machine needs */
 export interface Signal {
   source: AgentSource;
   sessionId: string;
   type: AgentEventType;
-  /** 원본 이벤트 이름 (예: "PreToolUse", "report:done") */
+  /** Original event name (e.g. "PreToolUse", "report:done") */
   nativeType: string;
   /** UTC ISO 8601 */
   at: string;
   turnId?: string;
-  /** 서브에이전트에서 일어난 이벤트 (무작위 id) */
+  /** Event from a subagent (random id) */
   agentId?: string;
-  /** 서브에이전트 종류가 있는가 — 비어 있으면 Claude Code 내부 작업이라 세지 않는다 */
+  /** Whether the subagent has a type — if empty it's Claude Code internal work and isn't counted */
   agentNamed?: boolean;
   waitingReason?: WaitingReason;
   toolFailed?: boolean;
-  /** 지시·요청 내용의 태그(HMAC). 같은 요청인지 값을 모른 채 비교한다 */
+  /** Tag (HMAC) of the instruction/request content. Compares whether it's the same request without knowing the value */
   requestTag?: string;
 }
 
@@ -58,10 +58,10 @@ export interface WireRecord {
   content: EventContent<Sealed>;
 }
 
-/** PC 에서만 알 수 있는 부가 정보 (node/enrich.ts) */
+/** Extra info only available on the PC (node/enrich.ts) */
 export type Enrichment = Pick<EventContent, 'project' | 'gitBranch' | 'aiTitle'>;
 
-/** 질문·응답 원문 한도 (자). 상세 화면에서 전체 응답을 볼 수 있게 넉넉히 — 2026-10-04 500 → 10,000 */
+/** Length limit (chars) for question/response text. Generous so the detail view shows the full response — 2026-10-04 500 → 10,000 */
 export const TEXT_LIMIT = 10_000;
 export const TITLE_LIMIT = 80;
 
@@ -70,7 +70,7 @@ const clip = (s: string, max = TEXT_LIMIT): string => {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };
 
-/** 작업 위치(cwd·프로젝트·브랜치)를 함께 보낼 이벤트. 도구 이벤트마다 보내지 않는다 */
+/** Events that also carry the work location (cwd/project/branch). Not sent with every tool event */
 export const carriesContext = (e: Pick<AgentEvent, 'type' | 'nativeType'>): boolean =>
   e.type === 'session_start' || e.type === 'prompt' || e.type === 'turn_end' || e.nativeType === 'CwdChanged';
 
@@ -80,7 +80,7 @@ export function activityOf(e: Pick<AgentEvent, 'tool' | 'agentId' | 'agentType'>
   return e.agentId && e.agentType ? `[${e.agentType}] ${base}` : base;
 }
 
-/** 정규화된 이벤트 → 신호 + 평문 내용 (봉인 전). 여기서 최소화가 끝난다 */
+/** Normalized event → signal + plaintext content (before sealing). Minimization is complete here */
 export function splitEvent(e: AgentEvent, extra: Enrichment = {}): { signal: Signal; content: EventContent; tagSource?: string } {
   const newCwd = e.nativeType === 'CwdChanged' && typeof e.raw.new_cwd === 'string' ? e.raw.new_cwd : undefined;
   const signal: Signal = {
@@ -115,7 +115,7 @@ function dropUndefined<T extends object>(o: T): T {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== '')) as T;
 }
 
-/** 전송할 레코드. 내용은 세션 키를 AAD 로 봉인한다 */
+/** Record to send. Content is sealed with the session key as AAD */
 export async function prepareRecord(e: AgentEvent, sealer: Sealer, extra: Enrichment = {}): Promise<WireRecord> {
   const { signal, content, tagSource } = splitEvent(e, extra);
   const aad = sessionKey(e.source, e.sessionId);

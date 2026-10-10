@@ -24,7 +24,7 @@ const stored = async (k = keys): Promise<StoredSession> => ({
 });
 
 describe('openSession', () => {
-  it('맞는 키면 평문 카드, 태그 같은 서버용 값은 빠진다', async () => {
+  it('with the right key: plaintext card, server-only values like tags are dropped', async () => {
     const s = await openSession(keys, await stored());
     expect(s).toMatchObject({ title: '로그인 고치기', project: 'api', status: 'running' });
     expect(s).not.toHaveProperty('enc');
@@ -32,7 +32,7 @@ describe('openSession', () => {
     expect(s.locked).toBeUndefined();
   });
 
-  it('다른 키거나 키가 없으면 내용은 비우고 locked — 상태는 그대로 보인다', async () => {
+  it('with another key or no key: content is empty and locked — status still shows', async () => {
     for (const k of [other, null]) {
       const s = await openSession(k, await stored());
       expect(s).toMatchObject({ status: 'running', locked: true });
@@ -41,7 +41,7 @@ describe('openSession', () => {
     }
   });
 
-  it('다른 세션으로 옮겨 붙인 암호문은 열리지 않는다', async () => {
+  it('ciphertext moved from another session does not open', async () => {
     const s = await stored();
     s.enc.title = await seal(keys, '다른 세션의 제목', 'claude-code:other');
     expect((await openSession(keys, s)).title).toBeUndefined();
@@ -49,7 +49,7 @@ describe('openSession', () => {
 });
 
 describe('openTurn / openTimelineItem', () => {
-  it('턴과 타임라인 한 줄', async () => {
+  it('turn and timeline line', async () => {
     const t = await openTurn(keys, {
       sessionKey: KEY,
       prompt: await seal(keys, '지시', KEY),

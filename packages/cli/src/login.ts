@@ -15,13 +15,13 @@ import { loadOrCreateMasterKey, readCloudConfig, removeCloudLogin, saveCloudLogi
 import { t } from './i18n.js';
 
 /**
- * bitl login: 이 PC 를 클라우드 계정에 연결한다.
- *   1. 이 PC 의 키쌍을 만들고, 1회용 비밀값으로 공개키에 서명해 연결을 시작한다
- *   2. 브라우저로 승인 링크를 연다 — 비밀값은 링크의 # 뒤에만 있어 서버는 모른다
- *   3. 승인되면 브라우저의 공개키 서명을 확인한 뒤
- *      - 브라우저가 계정 키를 넘겼으면 받고
- *      - 계정에 아직 키가 없으면 이 PC 의 (로컬 모드) 키를 계정 키로 브라우저에 넘긴다
- *   4. 기기 API 키와 계정 키를 ~/.bitl 에 저장 → 수집기가 이 계정으로 보낸다
+ * bitl login: connects this PC to a cloud account.
+ *   1. Create this PC's key pair and start the connection by signing the public key with a one-time secret
+ *   2. Open the approval link in a browser — the secret is only after the link's #, so the server never sees it
+ *   3. Once approved, verify the browser's public key signature, then
+ *      - receive the account key if the browser handed one over
+ *      - if the account has no key yet, hand this PC's (local mode) key to the browser as the account key
+ *   4. Save the device API key and account key to ~/.bitl → the collector sends to this account
  */
 
 interface PollView {
@@ -46,7 +46,7 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, unknown> };
 }
 
-/** 연결을 중간에 그만두면 방금 만들어진 기기를 지운다 */
+/** If the connection is abandoned midway, delete the just-created device */
 async function revokeSelf(base: string, apiKey: string | undefined) {
   if (!apiKey) return;
   await fetch(`${base}/api/devices/me`, { method: 'DELETE', headers: { authorization: `Bearer ${apiKey}` } }).catch(() => {});
@@ -58,7 +58,7 @@ function openBrowser(url: string) {
       process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
     spawn(cmd as string, args as string[], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   } catch {
-    // 브라우저를 못 열면 주소를 직접 열면 된다
+    // If the browser can't be opened, the user can open the address manually
   }
 }
 
@@ -82,7 +82,7 @@ export async function login(url: string, name = hostname(), opts: { openBrowser?
     webUrl?: string;
     apiUrl?: string;
   };
-  // 웹과 API 가 다른 주소일 수 있다 (usebitl.com / api.usebitl.com) — 승인은 웹에서, 이벤트는 API 로
+  // Web and API may be different addresses (usebitl.com / api.usebitl.com) — approval on the web, events to the API
   const web = (webUrl ?? base).replace(/\/+$/, '');
   const api = (apiUrl ?? base).replace(/\/+$/, '');
 
@@ -96,7 +96,7 @@ export async function login(url: string, name = hostname(), opts: { openBrowser?
   while (Date.now() < Date.parse(expiresAt)) {
     await sleep(intervalMs || 2000);
     const r = await postJson(`${base}/api/pairing/${encodeURIComponent(id)}/poll`, { pollToken }).catch(() => undefined);
-    if (!r) continue; // 네트워크가 잠깐 끊겨도 계속 기다린다
+    if (!r) continue; // keep waiting through brief network drops
     if (r.status === 404) throw new Error(t('login.expired'));
     view = r.json as unknown as PollView;
     if (view.status !== 'pending') break;
@@ -106,7 +106,7 @@ export async function login(url: string, name = hostname(), opts: { openBrowser?
 
   const apiKey = view.device?.apiKey;
   if (!view.device || !view.peer) throw new Error(t('login.noResult'));
-  // 서버가 끼워 넣은 공개키라면 서명이 맞지 않는다 — 키를 주고받지 않고 멈춘다
+  // A public key injected by the server would fail the signature check — stop without exchanging keys
   if (!(await verifyPublicKey(secret, 'responder', view.peer.publicKey, view.peer.mac))) {
     await revokeSelf(base, apiKey);
     throw new Error(t('login.badSignature'));
@@ -119,7 +119,7 @@ export async function login(url: string, name = hostname(), opts: { openBrowser?
     await revokeSelf(base, apiKey);
     throw new Error(t('login.noKeyBrowser'));
   } else {
-    // 계정의 첫 기기: 이 PC 의 키(로컬 모드에서 쓰던 것)를 계정 키로 쓴다
+    // First device on the account: use this PC's key (the one used in local mode) as the account key
     masterB64 = loadOrCreateMasterKey();
     const master = fromBase64Url(masterB64);
     const keys = await deriveKeys(master);
@@ -141,6 +141,5 @@ export async function logout(): Promise<void> {
   if (!cfg) return console.log(t('logout.notConnected'));
   await revokeSelf(cfg.url, cfg.apiKey);
   removeCloudLogin();
-  // npm 패키지(클라우드 전용)에는 로컬 서버가 없다
-  console.log(t(process.env.BITL_CLOUD_ONLY === '1' ? 'logout.doneCloud' : 'logout.done', { url: cfg.url, name: cfg.name }));
+  console.log(t('logout.done', { url: cfg.url, name: cfg.name }));
 }

@@ -19,15 +19,15 @@ afterEach(() => {
 
 const registry = (version: string) => vi.fn(async () => new Response(JSON.stringify({ version })));
 
-describe('새 버전 안내', () => {
-  it('저장소에서 돌리면(버전 없음) 묻지 않는다', async () => {
+describe('new-version notice', () => {
+  it('does not query when run from the repo (no version)', async () => {
     const f = registry('9.9.9');
     vi.stubGlobal('fetch', f);
     expect(await updateNotice(undefined)).toBeUndefined();
     expect(f).not.toHaveBeenCalled();
   });
 
-  it('새 버전이 있으면 한 줄로 알리고, 하루 동안은 다시 묻지 않는다', async () => {
+  it('announces a new version in one line and does not query again for a day', async () => {
     const f = registry('0.1.5');
     vi.stubGlobal('fetch', f);
     expect(await updateNotice('0.1.4')).toContain('0.1.5');
@@ -35,17 +35,17 @@ describe('새 버전 안내', () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
-  it('최신이면 아무것도 없다', async () => {
+  it('prints nothing when up to date', async () => {
     vi.stubGlobal('fetch', registry('0.1.4'));
     expect(await updateNotice('0.1.4')).toBeUndefined();
   });
 
-  it('레지스트리에 닿지 못해도 명령을 막지 않는다', async () => {
+  it('does not block the command when the registry is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('offline'))));
     expect(await updateNotice('0.1.4')).toBeUndefined();
   });
 
-  it('하루가 지나면 다시 묻는다', async () => {
+  it('queries again after a day', async () => {
     writeFileSync(join(home, 'update-check.json'), JSON.stringify({ checkedAt: '2020-01-01T00:00:00Z', latest: '0.1.4' }));
     const f = registry('0.2.0');
     vi.stubGlobal('fetch', f);
@@ -53,7 +53,7 @@ describe('새 버전 안내', () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
-  it('BITL_NO_UPDATE_CHECK=1 이면 끈다', async () => {
+  it('is disabled by BITL_NO_UPDATE_CHECK=1', async () => {
     vi.stubEnv('BITL_NO_UPDATE_CHECK', '1');
     const f = registry('9.9.9');
     vi.stubGlobal('fetch', f);

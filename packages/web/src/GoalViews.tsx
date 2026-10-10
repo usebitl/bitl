@@ -2,14 +2,14 @@ import { type BoardColumn, columnOf, displayTitle, type Session } from '@bitl/sh
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { changeGoal, createGoal, deleteGoal, type Goal, setGoalClosed, toggleMember } from './goals';
 import { SOURCE_LABEL } from './format';
-import { rich, t } from './i18n';
+import { rich, t, titleLabels } from './i18n';
 
 /**
- * 목표 화면 조각: 목표 줄(GoalsBar), 거르는 중 안내(GoalFilter), 만들기·편집 창(GoalDialog), 카드의 목표 메뉴(CardGoalMenu).
- * 목표의 숫자·막대는 연결된 카드의 지금 상태를 센다 (카드를 지웠거나 보관했으면 세지 않는다).
+ * Goal UI pieces: the goal bar (GoalsBar), the filtering notice (GoalFilter), the create/edit dialog (GoalDialog), and the card's goal menu (CardGoalMenu).
+ * A goal's counts and bar reflect the current state of its linked cards (deleted or archived cards are not counted).
  */
 
-/** + 아이콘 — 글자 '+' 는 글꼴마다 높이가 달라 옆 글자와 수직 정렬이 어긋난다 */
+/** + icon — the '+' character sits at different heights per font and misaligns vertically with adjacent text */
 export function PlusIcon({ className = 'size-3.5' }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
@@ -21,7 +21,7 @@ export function PlusIcon({ className = 'size-3.5' }: { className?: string }) {
 const COLS: BoardColumn[] = ['attention', 'running', 'review', 'rest'];
 const BAR: Record<BoardColumn, string> = { attention: 'bg-red-500', running: 'bg-emerald-500', review: 'bg-amber-400', rest: 'bg-zinc-400 dark:bg-zinc-600' };
 
-/** 목표에 연결된 카드 중 보드에 있는 것 */
+/** The goal's linked cards that are on the board */
 export function goalSessions(goal: Goal, sessions: Session[]): Session[] {
   const keys = new Set(goal.members);
   return sessions.filter((s) => keys.has(s.key) && !s.archived);
@@ -95,7 +95,7 @@ export function GoalsBar({
   );
 }
 
-/** 목표로 거르는 중: 무엇을 보고 있는지와 편집·마치기·전체 보기 */
+/** Filtering by a goal: what you are viewing, plus edit / finish / show all */
 export function GoalFilter({ goal, count, onEdit, onClear }: { goal: Goal; count: number; onEdit: () => void; onClear: () => void }) {
   const [busy, setBusy] = useState(false);
   const finish = async () => {
@@ -128,18 +128,18 @@ export function GoalFilter({ goal, count, onEdit, onClear }: { goal: Goal; count
   );
 }
 
-/** 카드를 프로젝트@브랜치로 묶는다 — 같은 작업 줄기의 카드를 한 번에 고르기 좋게 */
+/** Groups cards by project@branch — makes it easy to pick cards from the same line of work at once */
 function groupByWhere(sessions: Session[]): [string, Session[]][] {
   const groups = new Map<string, Session[]>();
   for (const s of sessions) {
     const where = s.project ? `${s.project}${s.gitBranch ? `@${s.gitBranch}` : ''}` : '';
     groups.set(where, [...(groups.get(where) ?? []), s]);
   }
-  // 카드가 여럿인 줄기를 먼저, 이름 없는 묶음은 맨 뒤
+  // groups with multiple cards first, unnamed group last
   return [...groups.entries()].sort(([a, x], [b, y]) => (a === '' ? 1 : b === '' ? -1 : y.length - x.length || a.localeCompare(b)));
 }
 
-/** 목표 만들기·편집. goal 이 있으면 편집 */
+/** Create or edit a goal. Edit when goal is given */
 export function GoalDialog({
   goal,
   sessions,
@@ -166,13 +166,13 @@ export function GoalDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // 보관하지 않은 카드, 최근 활동 순. 지금 연결된 카드는 끝났어도 보여 준다
+  // Unarchived cards, most recent activity first. Currently linked cards are shown even if ended
   const candidates = useMemo(
     () =>
       sessions
         .filter((s) => !s.archived && (s.status !== 'ended' || picked.has(s.key)))
         .sort((a, b) => b.lastEventAt.localeCompare(a.lastEventAt)),
-    // picked 를 넣으면 체크할 때마다 목록이 흔들린다 — 처음 연 때 기준
+    // depending on picked would reshuffle the list on every check — use the state when first opened
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sessions],
   );
@@ -194,7 +194,7 @@ export function GoalDialog({
     if (!title.trim()) return;
     setState('busy');
     try {
-      // 편집: 보드에서 사라진(지운) 카드는 목록에서 정리된다 — 화면에 있는 카드만 남긴다
+      // Edit: cards gone from the board (deleted) are pruned from the list — keep only cards on screen
       const members = candidates.filter((s) => picked.has(s.key)).map((s) => s.key);
       if (goal) await changeGoal(goal, () => ({ title: title.trim(), members }));
       else await createGoal({ title: title.trim(), members });
@@ -262,7 +262,7 @@ export function GoalDialog({
                     <label key={s.key} className="flex cursor-pointer items-center gap-3 border-t border-zinc-100 px-3 py-2 dark:border-zinc-800">
                       <input type="checkbox" checked={picked.has(s.key)} onChange={(e) => toggle([s.key], e.target.checked)} className="size-4 accent-sky-600" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">{displayTitle(s)}</span>
+                        <span className="block truncate text-sm">{displayTitle(s, titleLabels())}</span>
                         <span className="block truncate text-xs text-zinc-500">{SOURCE_LABEL[s.source]}</span>
                       </span>
                     </label>
@@ -311,7 +311,7 @@ export function GoalDialog({
   );
 }
 
-/** 카드의 목표 메뉴: 목표마다 넣기·빼기, 새 목표 만들어 넣기 */
+/** The card's goal menu: add to / remove from each goal, or create a new goal with it */
 export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: string; goals: Goal[]; onNewGoal: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -371,7 +371,7 @@ export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: str
   );
 }
 
-/** 카드에 붙는 목표 이름 */
+/** Goal name shown on a card */
 export function GoalBadges({ sessionKey, goals }: { sessionKey: string; goals: Goal[] }) {
   const mine = goals.filter((g) => !g.locked && g.members.includes(sessionKey));
   if (mine.length === 0) return null;

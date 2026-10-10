@@ -5,10 +5,10 @@ import { bitlHome } from '@bitl/shared/node';
 import { t } from './i18n.js';
 
 /**
- * 새 버전 알림: 사용자가 직접 친 명령(status·install·login …)이 끝난 뒤 한 줄.
- * - npm 패키지에서만 (저장소 실행은 버전이 없다). hook·어댑터 경로에서는 부르지 않는다 — 에이전트를 늦추면 안 된다
- * - npm 레지스트리는 하루 한 번만 묻고, 1초 안에 답이 없으면 건너뛴다. 결과는 $BITL_HOME/update-check.json 에 둔다
- * - BITL_NO_UPDATE_CHECK=1 이면 끈다
+ * New-version notice: one line after a command the user typed (status, install, login …).
+ * - npm package only (repo runs have no version). Never called from hook/adapter paths — must not slow the agent
+ * - Queries the npm registry at most once a day and skips if there is no answer within 1 second. Result is kept in $BITL_HOME/update-check.json
+ * - Disabled by BITL_NO_UPDATE_CHECK=1
  */
 const REGISTRY = 'https://registry.npmjs.org/@usebitl/cli/latest';
 const DAY = 86_400_000;
@@ -40,7 +40,7 @@ async function fetchLatest(): Promise<string | undefined> {
   }
 }
 
-/** 최신 버전 (하루 한 번 확인). 확인하지 못하면 마지막으로 안 값 */
+/** Latest version (checked once a day). Falls back to the last known value if the check fails */
 async function latestVersion(now = Date.now()): Promise<string | undefined> {
   const cache = readCache();
   if (cache && now - Date.parse(cache.checkedAt) < DAY) return cache.latest;
@@ -49,12 +49,12 @@ async function latestVersion(now = Date.now()): Promise<string | undefined> {
     mkdirSync(bitlHome(), { recursive: true });
     writeFileSync(cachePath(), JSON.stringify({ checkedAt: new Date(now).toISOString(), latest } satisfies Cache) + '\n');
   } catch {
-    // 다음에 다시
+    // try again next time
   }
   return latest;
 }
 
-/** 새 버전이 있으면 안내 문구, 없거나 확인할 수 없으면 undefined */
+/** Notice text if a new version exists, undefined if none or unknown */
 export async function updateNotice(current = process.env.BITL_CLIENT_VERSION): Promise<string | undefined> {
   if (!current || process.env.BITL_NO_UPDATE_CHECK === '1') return undefined;
   const latest = await latestVersion();

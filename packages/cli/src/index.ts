@@ -26,13 +26,13 @@ import { login, logout } from './login.js';
 import { updateNotice } from './update.js';
 
 /**
- * npm 패키지(@usebitl/cli)로 빌드하면 true — 클라우드 전용: 로컬 서버(bitl start)와 로컬 MCP(claude-desktop)는 빠진다.
- * 기본 연결 주소도 빌드할 때 정한다 (packages/cli/npm/build.mjs 의 define)
+ * True in the npm package (@usebitl/cli): the local MCP server (claude-desktop) is left out.
+ * The default login URL is also set at build time (define in packages/cli/npm/build.mjs)
  */
-const CLOUD_ONLY = process.env.BITL_CLOUD_ONLY === '1';
+const NPM_BUILD = process.env.BITL_NPM_BUILD === '1';
 const DEFAULT_URL = process.env.BITL_DEFAULT_URL;
 
-/** 도움말 한 줄: 명령은 왼쪽 칸에 맞추고, 길면 세 칸 띄운다. 한글은 터미널에서 두 칸을 차지한다 */
+/** One help line: commands are aligned in the left column, or followed by three spaces if too long. Korean characters take two columns in a terminal */
 const row = (cmd: string, desc: string) => {
   const width = cmd.length + (cmd.match(/[가-힣]/g)?.length ?? 0);
   return `  ${width < 40 ? cmd + ' '.repeat(40 - width) : `${cmd}   `}${desc}`;
@@ -42,20 +42,20 @@ const usage = () =>
   [
     t('usage.title'),
     '',
-    ...(CLOUD_ONLY ? [] : [row('bitl start', t('usage.start'))]),
+    row('bitl start', t('usage.start')),
     row('bitl status', t('usage.status')),
     row(`bitl pair ${t('usage.pairArgs')}`, t('usage.pair')),
     '',
     DEFAULT_URL
       ? row(`bitl login ${t('usage.loginArgsDefault')}`, t('usage.loginDefault', { url: DEFAULT_URL }))
       : row(`bitl login ${t('usage.loginArgs')}`, t('usage.login')),
-    row('bitl logout', CLOUD_ONLY ? t('usage.logoutCloud') : t('usage.logout')),
+    row('bitl logout', t('usage.logout')),
     '',
     row('bitl install claude [--project D]', t('usage.installClaude')),
     row('bitl install codex', t('usage.installCodex')),
     row('bitl install antigravity', t('usage.installAgy')),
-    ...(CLOUD_ONLY ? [] : [row('bitl install claude-desktop', t('usage.installDesktop'))]),
-    `  bitl uninstall <claude|codex|antigravity${CLOUD_ONLY ? '' : '|claude-desktop'}> [--project D]`,
+    ...(NPM_BUILD ? [] : [row('bitl install claude-desktop', t('usage.installDesktop'))]),
+    `  bitl uninstall <claude|codex|antigravity${NPM_BUILD ? '' : '|claude-desktop'}> [--project D]`,
     '',
     row('bitl remote [on|off]', t('usage.remote')),
     row('', t('usage.remote2')),
@@ -72,7 +72,7 @@ function option(args: string[], name: string): string | undefined {
   return v;
 }
 
-/** 보낼 곳 (bitl login 했으면 클라우드 계정, 아니면 로컬 서버) 에 요청 */
+/** Request to the target (the cloud account after bitl login, otherwise the local server) */
 async function request(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
   const target = resolveTarget();
   const res = await fetch(`${target.url}${path}`, {
@@ -89,19 +89,19 @@ async function request(path: string, init: { method?: string; body?: unknown } =
 }
 
 /**
- * 브라우저에 키를 넘기는 링크. # 뒤(fragment)는 브라우저가 서버로 보내지 않는다 — 서버는 키를 모른다.
- * 로컬 모드 임시 방식: 클라우드 서버 단계에서는 기기 키쌍 + QR 로 바뀐다
+ * Link that hands the key to the browser. Browsers never send the part after # (fragment) to the server — the server never knows the key.
+ * Interim local-mode approach: in the cloud server phase this becomes a device key pair + QR
  */
 /**
- * 브라우저가 보드를 여는 주소. 브라우저는 키를 주소마다 따로 저장하므로 실제로 여는 주소와 같아야 한다
- * (127.0.0.1 과 localhost 도 다른 주소). 순서: --url → BITL_PUBLIC_URL(클라우드 모드) → 이 PC 의 로컬 서버
+ * Address the browser opens the board at. Browsers store the key per address, so it must match the address actually opened
+ * (127.0.0.1 and localhost are different addresses). Order: --url → BITL_PUBLIC_URL (cloud mode) → this PC's local server
  */
 const boardUrl = (override?: string) =>
   (override?.trim() || process.env.BITL_PUBLIC_URL?.trim() || readCloudConfig()?.url || serverUrl()).replace(/\/+$/, '');
-/** 클라우드 계정에 연결했으면 그 계정 키, 아니면 로컬 키 */
+/** The account key if connected to a cloud account, otherwise the local key */
 const masterForPair = () => (readCloudConfig() ? readFileSync(cloudKeyPath(), 'utf8').trim() : loadOrCreateMasterKey());
 const pairUrl = (base?: string) => `${boardUrl(base)}/#key=${masterForPair()}`;
-/** bitl start 가 띄운 로컬 서버용 링크 — 클라우드에 연결한 PC 라도 로컬 주소·로컬 키 (계정 키를 화면에 찍지 않는다) */
+/** Link for the local server started by bitl start — local address and local key even on a cloud-connected PC (never print the account key) */
 const localPairUrl = () => `${serverUrl().replace(/\/+$/, '')}/#key=${loadOrCreateMasterKey()}`;
 
 function pair(args: string[]) {
@@ -126,7 +126,7 @@ async function status() {
   if (target.kind === 'cloud') console.log(t('status.cloud', { url: target.url }));
   if (stored.length === 0) return console.log(t('status.none'));
   let keys = await target.keys();
-  // 클라우드 Claude(원격 MCP) 카드는 받은편지함 키로 잠겨 있다 — 계정 키로 봉인된 개인키를 받아 연다
+  // Cloud Claude (remote MCP) cards are locked with the inbox key — fetch the private key sealed with the account key and open them
   if (target.kind === 'cloud') {
     const res = await request('/api/inbox-key').catch(() => null);
     const k = res?.ok ? ((await res.json()) as { wrappedPrivateKey?: string }) : null;
@@ -141,7 +141,7 @@ async function status() {
   }
 }
 
-/** 원격 승인 켜기·끄기·보기 (bitl remote, 예전 이름 bitl away) */
+/** Turn remote approval on/off or show it (bitl remote, formerly bitl away) */
 async function away(arg: string | undefined) {
   if (arg !== undefined && arg !== 'on' && arg !== 'off') throw new Error(t('err.remoteUsage'));
   const res =
@@ -169,7 +169,7 @@ function install(cmd: 'install' | 'uninstall', target: string | undefined, args:
     case 'codex':
       file = codexConfigPath();
       result = updateTextFile(file, add ? (t) => addCodexBlock(t) : removeCodexBlock);
-      // Codex 는 사용자가 신뢰한 hook 만 실행한다 (정의의 해시로 기록 — 경로가 바뀌어도 다시 신뢰)
+      // Codex only runs hooks the user has trusted (recorded by a hash of the definition — trust again if the path changes)
       extra = `${t('install.adapter', { path: ADAPTER_PATH })}\n  ${t('install.codexTrust')}`;
       break;
     case 'antigravity':
@@ -178,14 +178,14 @@ function install(cmd: 'install' | 'uninstall', target: string | undefined, args:
       extra = `${t('install.adapter', { path: ADAPTER_PATH })}\n  ${t('install.agyRestart')}`;
       break;
     case 'claude-desktop':
-      if (CLOUD_ONLY) throw new Error(t('err.noDesktop'));
+      if (NPM_BUILD) throw new Error(t('err.noDesktop'));
       file = claudeDesktopConfigPath();
       result = updateSettingsFile(file, add ? (c) => addMcpServer(c) : removeMcpServer);
       extra = `${t('install.mcp', { path: MCP_PATH })}\n  ${t('install.desktopRestart')}`;
       break;
     default:
       throw new Error(
-        t('err.unknownTarget', { target: target ?? t('err.none'), list: `claude, codex, antigravity${CLOUD_ONLY ? '' : ', claude-desktop'}` }),
+        t('err.unknownTarget', { target: target ?? t('err.none'), list: `claude, codex, antigravity${NPM_BUILD ? '' : ', claude-desktop'}` }),
       );
   }
 
@@ -199,7 +199,9 @@ async function main(argv: string[]) {
   const [cmd, ...rest] = argv;
   switch (cmd) {
     case 'start': {
-      if (CLOUD_ONLY) throw new Error(t('err.noStart'));
+      // The local server stores data with node:sqlite (Node 22.5+); other commands work on older Node
+      const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
+      if (major < 22 || (major === 22 && minor < 5)) throw new Error(t('err.nodeSqlite', { version: process.version }));
       const { startServer } = await import('@bitl/server');
       await startServer();
       console.log(t('start.pair', { url: localPairUrl() }));
@@ -215,13 +217,13 @@ async function main(argv: string[]) {
     case 'login': {
       const url = option(rest, '--url') ?? process.env.BITL_PUBLIC_URL?.trim() ?? DEFAULT_URL;
       if (!url) throw new Error(t('err.loginUrl'));
-      // --no-browser: 브라우저를 자동으로 열지 않는다 (SSH 로 접속한 PC 등 — 링크를 다른 기기에서 연다)
+      // --no-browser: do not open a browser automatically (e.g. a PC reached over SSH — open the link on another device)
       return login(url, option(rest, '--name'), { openBrowser: !rest.includes('--no-browser') });
     }
     case 'logout':
       return logout();
     case 'remote':
-    case 'away': // 예전 이름
+    case 'away': // former name
       return away(rest[0]);
     default:
       console.log(usage());
@@ -234,7 +236,7 @@ main(process.argv.slice(2))
     process.exitCode = 1;
   })
   .then(async () => {
-    // 새 버전 안내는 사람이 직접 친 명령에서만 (bitl start 는 계속 도는 서버라 제외). 출력이 JSON 등으로 쓰이지 않게 stderr 로
+    // New-version notice only for commands a person typed (not bitl start, a long-running server). Goes to stderr so it doesn't pollute JSON output etc.
     if (process.argv[2] === 'start') return;
     const notice = await updateNotice();
     if (notice) console.error(`\n${notice}`);

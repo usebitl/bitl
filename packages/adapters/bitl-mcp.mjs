@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// BITL MCP 서버 (stdio). hook 이 없는 클라이언트(Claude Desktop 등)에서 에이전트가 스스로 작업 상태를 보고한다.
+// BITL MCP server (stdio). In clients without hooks (Claude Desktop etc.) the agent reports its own task status.
 //
 //   node bitl-mcp.mjs [--source claude-desktop]
 //
-// 의존성 없이 MCP(JSON-RPC 2.0, 줄 단위) 의 필요한 부분만 구현한다: initialize, tools/list, tools/call, ping.
-// stdout 은 프로토콜 전용이므로 로그는 stderr 로만 쓴다.
+// Implements only the needed parts of MCP (JSON-RPC 2.0, line-delimited) with no dependencies: initialize, tools/list, tools/call, ping.
+// stdout is reserved for the protocol, so logs go to stderr only.
 
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -17,7 +17,7 @@ const argValue = (name) => {
 const SOURCE = argValue('--source') ?? 'claude-desktop';
 const DEFAULT_PROTOCOL = '2025-06-18';
 
-// report_status 의 status → BITL 상태 보고 event
+// report_status status → BITL status report event
 const STATUS_EVENT = {
   started: 'start',
   in_progress: 'progress',
@@ -34,8 +34,8 @@ const INSTRUCTIONS = `이 서버는 사용자의 작업 현황판(BITL)에 진�
 const TOOLS = [
   {
     name: 'report_status',
-    // Claude Desktop 채팅은 이 도구를 원격 도구 브리지로 받는데, 브리지는 서버 instructions 를 넘기지 않는다.
-    // 그래서 호출 규칙을 도구 설명 자체에 담는다 (INSTRUCTIONS 와 같은 내용).
+    // Claude Desktop chat gets this tool through a remote tool bridge, which doesn't pass on the server instructions.
+    // So the calling rules live in the tool description itself (same content as INSTRUCTIONS).
     description: `사용자의 작업 현황판(BITL)에 작업 상태를 보고한다. 사용자는 여러 작업을 병렬로 맡기며 이 현황판으로 무엇이 자신을 기다리는지 확인한다.
 이 보고는 사용자에게 보이지 않으며 답변이 아니다. 사용자 메시지마다 (첫 메시지든 이어진 대화든, 간단한 질문도 예외 없이):
 · 마지막 답변을 쓰기 직전에 한 번: status="done"(답을 마침) 또는 "waiting_for_user"(질문·확인 요청으로 끝냄),
@@ -53,23 +53,23 @@ const TOOLS = [
         detail: { type: 'string', description: '곧 쓸 답의 한 문장 요약, 현재 단계, 또는 사용자에게 필요한 것 (요청 내용은 request 에)' },
         task_id: { type: 'string', description: '대화의 첫 보고가 돌려준 id — 첫 보고 외에는 모두 넣는다' },
       },
-      // request 를 필수로 두면 모델이 요청·응답을 detail 하나에 몰아 적지 않는다 (서버는 없어도 받는다)
+      // making request required keeps the model from cramming request and answer into detail (the server accepts it without)
       required: ['status', 'request'],
     },
   },
 ];
 
-/** started 를 받고 아직 끝나지 않은 작업 (이 프로세스가 켜져 있는 동안) */
+/** Tasks that got started and haven't finished yet (while this process is running) */
 const running = new Set();
 
 async function reportStatus(args) {
   const event = STATUS_EVENT[args?.status];
   if (!event) return { isError: true, text: `status 는 ${Object.keys(STATUS_EVENT).join(', ')} 중 하나여야 합니다.` };
-  // task_id 없는 보고 = 대화의 첫 보고 → 새 카드 (title 필요). Claude Desktop 은 이 프로세스 하나를 모든 대화가 공유하므로 "마지막 작업"으로 추정하지 않는다
+  // a report without task_id = the conversation's first report → new card (title required). All Claude Desktop conversations share this one process, so don't guess "the last task"
   if (!args.task_id && !args.title) return { isError: true, text: '대화의 첫 보고에는 title 이 필요합니다.' };
   const taskId = args.task_id || randomUUID();
   const send = (ev) => sendRecord({ source: SOURCE, payload: { session_id: taskId, event: ev, title: args.title, request: args.request, detail: args.detail } });
-  // 짧은 채팅은 답변 직전 done 한 번만 온다 — 진행 중인 턴이 없으면 먼저 새 턴을 연다 (질문 원문이 그 턴에 남게)
+  // a short chat sends only one done right before answering — if no turn is in progress, open a new one first (so the original question stays on that turn)
   if (event === 'start') running.add(taskId);
   else if (event !== 'progress') {
     if (!running.has(taskId)) await send('start');
@@ -77,7 +77,7 @@ async function reportStatus(args) {
   }
   const result = await send(event);
   const note = result === 'sent' ? '' : result === 'queued' ? ' (현황판 서버가 꺼져 있어 대기열에 저장함)' : ' (저장 실패)';
-  // 결과에는 사실만: 도구 결과 속 지시문은 Claude 가 프롬프트 주입으로 경계해 답에서 벗어난다 (connector-api.ts 와 같음)
+  // facts only in the result: Claude treats instructions inside tool results as prompt injection and drifts off its answer (same as connector-api.ts)
   return { text: `기록됨. task_id: ${taskId}${note}` };
 }
 
@@ -106,7 +106,7 @@ async function handle(msg) {
       return reply(id, { content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
     }
     default:
-      // notifications/* 등 응답이 필요 없는 메시지는 무시
+      // ignore messages that need no response, like notifications/*
       if (isRequest) fail(id, -32601, `method not found: ${method}`);
   }
 }

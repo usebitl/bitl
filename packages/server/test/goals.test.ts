@@ -8,7 +8,7 @@ import { DATABASES } from './databases.js';
 const keys = await deriveKeys(generateMasterKey());
 const sealGoal = (id: string, title: string, members: string[]) => seal(keys, JSON.stringify({ title, members }), `goal:${id}`);
 
-describe.each(DATABASES)('목표 — %s', (_, open) => {
+describe.each(DATABASES)('goals — %s', (_, open) => {
   let store: SqlStore;
   let goals: GoalStore;
   let app: ReturnType<typeof createApp>;
@@ -30,7 +30,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-  it('만들고 봉인된 내용을 그대로 돌려준다 — 서버는 내용을 모른다', async () => {
+  it('creates and returns the sealed content as is — the server cannot read it', async () => {
     const data = await sealGoal('goal_aaaaaaaa', '오늘 긴급 배포', ['claude-code:s1', 'codex:s2']);
     const res = await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data });
     expect(res.status).toBe(201);
@@ -38,11 +38,11 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ id: 'goal_aaaaaaaa', version: 1 });
     expect(JSON.parse(await openSealed(keys, list[0]!.data, 'goal:goal_aaaaaaaa'))).toEqual({ title: '오늘 긴급 배포', members: ['claude-code:s1', 'codex:s2'] });
-    // 다른 계정에서는 안 보인다
+    // not visible from another account
     expect(await (await call('u2', 'GET', '/api/goals')).json()).toEqual([]);
   });
 
-  it('봉인되지 않은 내용·잘못된 id·같은 id 는 거절', async () => {
+  it('rejects unsealed content, bad ids and duplicate ids', async () => {
     expect((await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: '평문 제목' })).status).toBe(400);
     expect((await call('u1', 'POST', '/api/goals', { id: 'x', data: await sealGoal('x', 't', []) })).status).toBe(400);
     const data = await sealGoal('goal_aaaaaaaa', 't', []);
@@ -50,7 +50,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect((await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data })).status).toBe(409);
   });
 
-  it('고치기는 version 이 맞을 때만 — 낡은 version 이면 409 와 최신 목표', async () => {
+  it('edits only with a matching version — a stale version gets 409 and the latest goal', async () => {
     await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: await sealGoal('goal_aaaaaaaa', 't', []) });
     const data2 = await sealGoal('goal_aaaaaaaa', 't', ['claude-code:s1']);
     const ok = await call('u1', 'PUT', '/api/goals/goal_aaaaaaaa', { version: 1, data: data2 });
@@ -63,7 +63,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect((await call('u1', 'PUT', '/api/goals/nope_nope_nope', { version: 1 })).status).toBe(404);
   });
 
-  it('마치면 목록에서 빠지고 ?closed=1 로 보인다, 다시 열 수 있다', async () => {
+  it('closed goals drop out of the list, show with ?closed=1 and can be reopened', async () => {
     await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: await sealGoal('goal_aaaaaaaa', 't', []) });
     const closed = (await (await call('u1', 'PUT', '/api/goals/goal_aaaaaaaa', { version: 1, closed: true })).json()) as Goal;
     expect(closed.closedAt).toBeTruthy();
@@ -73,7 +73,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect(reopened.closedAt).toBeUndefined();
   });
 
-  it('지우기, 바뀔 때마다 구독자에게 알린다', async () => {
+  it('delete; subscribers are notified on every change', async () => {
     const seen: string[] = [];
     const off = goals.subscribe((c) => seen.push(c.type === 'goal' ? `goal:${c.goal.version}` : `removed:${c.id}`));
     await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: await sealGoal('goal_aaaaaaaa', 't', []) });
@@ -84,7 +84,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect(seen).toEqual(['goal:1', 'goal:2', 'removed:goal_aaaaaaaa']);
   });
 
-  it('읽기 전용 계정은 만들기·고치기 402, 지우기는 된다', async () => {
+  it('read-only accounts get 402 on create/edit, delete still works', async () => {
     await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: await sealGoal('goal_aaaaaaaa', 't', []) });
     writable = false;
     expect((await call('u1', 'POST', '/api/goals', { id: 'goal_bbbbbbbb', data: await sealGoal('goal_bbbbbbbb', 't', []) })).status).toBe(402);
@@ -92,7 +92,7 @@ describe.each(DATABASES)('목표 — %s', (_, open) => {
     expect((await call('u1', 'DELETE', '/api/goals/goal_aaaaaaaa')).status).toBe(200);
   });
 
-  it(`계정당 ${MAX_GOALS}개까지`, async () => {
+  it(`up to ${MAX_GOALS} per account`, async () => {
     const data = await sealGoal('goal_cap', 't', []);
     for (let i = 0; i < MAX_GOALS; i++) await goals.create('u1', `goal_${String(i).padStart(8, '0')}`, data);
     expect(await goals.create('u1', 'goal_overflow', data)).toBeUndefined();

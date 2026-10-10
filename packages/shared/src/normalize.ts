@@ -10,7 +10,7 @@ export const oneLine = (s: string, max = 120): string => {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 };
 
-/** Codex 는 command 를 argv 배열로 줄 수 있다: ["bash", "-lc", "pnpm test"] → "pnpm test" */
+/** Codex may give command as an argv array:["bash", "-lc", "pnpm test"] → "pnpm test" */
 function commandText(v: unknown): string | undefined {
   if (!Array.isArray(v)) return str(v);
   const parts = v.filter((x): x is string => typeof x === 'string');
@@ -18,28 +18,28 @@ function commandText(v: unknown): string | undefined {
   return str(shell ? parts[2] : parts.join(' '));
 }
 
-/** tool_input 에서 보드에 보여줄 한 줄 요약을 뽑는다. */
+/** Extracts a one-line summary from tool_input to show on the board. */
 export function summarizeToolInput(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined;
   const i = input as Raw;
-  // AskUserQuestion: { questions: [{ question, options }] } → 첫 질문
+  // AskUserQuestion: { questions: [{ question, options }] } → first question
   const first = (list: unknown, key: string) => (Array.isArray(list) ? str((list[0] as Raw | undefined)?.[key]) : undefined);
   const pick =
     commandText(i.command) ?? str(i.file_path) ?? str(i.path) ?? str(i.pattern) ??
     str(i.url) ?? str(i.query) ?? str(i.description) ?? str(i.prompt) ??
     first(i.questions, 'question') ?? str(i.plan) ?? // ExitPlanMode: { plan }
-    // Codex webrun: { search_query: [{ q }] } 또는 { weather: [{ location }] }
+    // Codex webrun: { search_query: [{ q }] } or { weather: [{ location }] }
     first(i.search_query, 'q') ?? first(i.weather, 'location');
   return pick ? oneLine(pick) : undefined;
 }
 
-/** 사용자가 답할 때까지 에이전트가 멈추는 Claude Code 도구 → 대기 사유 */
+/** Claude Code tools where the agent stops until the user answers → waiting reason */
 const USER_BLOCKING_TOOLS: Record<string, WaitingReason | undefined> = {
   AskUserQuestion: 'question',
   ExitPlanMode: 'plan',
 };
 
-/** Notification.notification_type → 대기 사유. 대기가 아니면 undefined */
+/** Notification.notification_type → waiting reason. undefined if not waiting */
 function waitingFromNotification(kind: string | undefined): WaitingReason | undefined {
   switch (kind) {
     case 'permission_prompt':
@@ -57,7 +57,7 @@ function waitingFromNotification(kind: string | undefined): WaitingReason | unde
 }
 
 /**
- * Claude Code hooks 와 Codex hooks 는 이벤트 이름·공통 필드가 거의 같아서 하나로 처리한다.
+ * Claude Code hooks and Codex hooks share nearly the same event names and common fields, so one handler covers both.
  * https://code.claude.com/docs/en/hooks , https://learn.chatgpt.com/docs/hooks
  */
 export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string): AgentEvent | null {
@@ -90,12 +90,12 @@ export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string)
       break;
     case 'UserPromptSubmit':
       type = 'prompt';
-      // 문서상 user_prompt, 구버전/Codex 는 prompt
+      // user_prompt per the docs; prompt in older versions/Codex
       text = str(raw.user_prompt) ?? str(raw.prompt);
       break;
     case 'PreToolUse': {
       tool = toolInfo();
-      // 사용자가 답해야 끝나는 도구 — 실행 중이 아니라 "나를 기다림". 끝나면(PostToolUse) 다시 running
+      // A tool that only ends when the user answers — "waiting for you", not running. Back to running when it ends (PostToolUse)
       const reason = tool && USER_BLOCKING_TOOLS[tool.name];
       type = reason ? 'waiting' : 'tool_start';
       waitingReason = reason;
@@ -123,7 +123,7 @@ export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string)
       break;
     }
     case 'Stop':
-    case 'Interrupt': // Codex: 진행 중 턴이 중단됨
+    case 'Interrupt': // Codex: the in-progress turn was interrupted
       type = 'turn_end';
       text = str(raw.last_assistant_message);
       break;
@@ -163,8 +163,8 @@ export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string)
 }
 
 /**
- * Codex `notify` 페이로드 (hooks 를 못 쓰는 환경용 폴백). 현재는 agent-turn-complete 만 존재.
- * 키가 kebab-case 인 점에 주의.
+ * Codex `notify` payload (fallback for environments without hooks). Currently only agent-turn-complete exists.
+ * Note the keys are kebab-case.
  */
 export function normalizeCodexNotify(raw: Raw, receivedAt: string): AgentEvent | null {
   const nativeType = str(raw.type);
@@ -185,9 +185,9 @@ export function normalizeCodexNotify(raw: Raw, receivedAt: string): AgentEvent |
 
 /**
  * Antigravity CLI (agy) hooks — https://antigravity.google/docs/hooks/
- * 필드가 camelCase 이고 이벤트 이름이 페이로드에 없어 어댑터가 --event 로 받아 hook_event_name 에 넣는다.
- * 질문·답변 원문도 없어 어댑터가 트랜스크립트에서 prompt·last_assistant_message 를 채운다 (node/antigravity.ts).
- * 세션 시작·종료, 승인 대기 이벤트는 없다 (PreToolUse 는 승인창보다 먼저 온다) → 승인 대기는 어댑터가 대화 DB 를 보고 만든다.
+ * Fields are camelCase and the event name isn't in the payload, so the adapter takes it via --event and puts it in hook_event_name.
+ * The question/answer text is missing too, so the adapter fills prompt/last_assistant_message from the transcript (node/antigravity.ts).
+ * There are no session start/end or approval-wait events (PreToolUse arrives before the approval prompt) → the adapter derives approval waits from the conversation DB.
  */
 type AgyToolCall = { name?: unknown; args?: Raw } | null | undefined;
 
@@ -213,7 +213,7 @@ export function normalizeAntigravity(raw: Raw, receivedAt: string): AgentEvent |
 
   switch (nativeType) {
     case 'PreInvocation':
-      // 턴 안의 모델 호출마다 온다. 첫 호출(invocationNum 0)만 사용자 질문
+      // Arrives for every model call within a turn. Only the first call (invocationNum 0) is the user's question
       if (raw.invocationNum !== 0) return null;
       type = 'prompt';
       text = str(raw.prompt);
@@ -225,7 +225,7 @@ export function normalizeAntigravity(raw: Raw, receivedAt: string): AgentEvent |
       break;
     case 'PostToolUse':
       tool = agyTool(call, !!error);
-      if (!tool) return null; // toolCall 이 null 인 PostToolUse 가 온다
+      if (!tool) return null; // PostToolUse can arrive with a null toolCall
       type = 'tool_end';
       text = error;
       break;
@@ -233,17 +233,17 @@ export function normalizeAntigravity(raw: Raw, receivedAt: string): AgentEvent |
       type = error ? 'error' : 'turn_end';
       text = error ?? str(raw.last_assistant_message);
       break;
-    // 아래 둘은 agy 가 아니라 bitl-agy-watch.mjs 가 대화 DB 의 단계 상태를 보고 만든다
+    // The two below come not from agy but from bitl-agy-watch.mjs, based on step state in the conversation DB
     case 'bitl:PermissionWaiting':
       type = 'waiting';
       waitingReason = 'permission';
       tool = agyTool(call);
       break;
-    case 'bitl:PermissionResolved': // 승인·거부·취소 → 다시 진행 중 (도구 수는 세지 않는다)
+    case 'bitl:PermissionResolved': // approved/denied/cancelled → back to in progress (not counted as a tool)
       type = 'progress';
       break;
     default:
-      return null; // PostInvocation 등
+      return null; // PostInvocation etc.
   }
 
   const workspaces = Array.isArray(raw.workspacePaths) ? raw.workspacePaths : [];
@@ -264,7 +264,7 @@ export function normalizeAntigravity(raw: Raw, receivedAt: string): AgentEvent |
 }
 
 /**
- * BITL 자체 "상태 보고" 형식 — MCP 서버(bitl-mcp), 수동 작업(bitl add, 웹) 이 보낸다.
+ * BITL's own "status report" format — sent by the MCP server (bitl-mcp) and manual tasks (bitl add, web).
  *   { session_id, event: 'start' | 'progress' | 'waiting' | 'done' | 'error' | 'end', title?, detail?, cwd? }
  */
 export const REPORT_EVENTS = ['start', 'progress', 'waiting', 'done', 'error', 'end'] as const;
@@ -292,7 +292,7 @@ export function normalizeReport(source: AgentSource, raw: Raw, receivedAt: strin
     nativeType: `report:${event}`,
     at: receivedAt,
     cwd: str(raw.cwd),
-    // start 는 제목이 곧 지시 내용, 나머지는 상세 설명
+    // For start the title is the instruction itself; for the rest it's the detail
     text: event === 'start' ? (title ?? detail) : detail,
     request: str(raw.request),
     waitingReason: event === 'waiting' ? 'input' : undefined,
@@ -300,7 +300,7 @@ export function normalizeReport(source: AgentSource, raw: Raw, receivedAt: strin
   };
 }
 
-/** 어댑터가 받는 원본: hook/notify 페이로드 또는 상태 보고. source 로 형식을 고른다 */
+/** Raw input the adapter receives: a hook/notify payload or a status report. source picks the format */
 export interface RawRecord {
   /** 'claude-code' | 'codex' | 'codex-notify' | 'antigravity' | 'claude-desktop' | 'manual' */
   source: string;
@@ -309,14 +309,14 @@ export interface RawRecord {
 }
 
 export function normalizeRecord(rec: RawRecord): AgentEvent | null {
-  // 저장 규칙: 모든 시각은 UTC ISO 8601 ('...Z'). 오프셋이 붙어 와도 UTC 로 바꾼다.
-  // 같은 형식이어야 문자열 비교(state.ts 의 statusAt 비교 등)가 시간 순서와 일치한다.
+  // Storage rule: all timestamps are UTC ISO 8601 ('...Z'). Converted to UTC even if they come with an offset.
+  // A single format keeps string comparison (e.g. statusAt in state.ts) consistent with time order.
   const at = rec.receivedAt && !Number.isNaN(Date.parse(rec.receivedAt)) ? new Date(rec.receivedAt).toISOString() : new Date().toISOString();
   if (rec.source === 'codex-notify') return normalizeCodexNotify(rec.payload, at);
   if (rec.source === 'antigravity') return normalizeAntigravity(rec.payload, at);
   if (!(AGENT_SOURCES as readonly string[]).includes(rec.source)) return null;
   const source = rec.source as AgentSource;
-  // hook_event_name 이 없고 event 가 있으면 BITL 상태 보고 형식 (MCP, 수동 작업)
+  // No hook_event_name but an event → BITL status report format (MCP, manual tasks)
   const isReport = typeof rec.payload.event === 'string' && rec.payload.hook_event_name === undefined;
   return isReport ? normalizeReport(source, rec.payload, at) : normalizeHook(source, rec.payload, at);
 }

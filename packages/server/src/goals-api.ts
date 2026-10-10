@@ -5,20 +5,20 @@ import type { GoalStore } from './store/index.js';
 
 type Env = { Variables: { accountId: string; deviceId?: string } };
 
-/** 목표 id — 브라우저가 만든다 (봉인 AAD 에 들어가므로) */
+/** Goal id — created by the browser (it goes into the seal's AAD) */
 const GOAL_ID = /^[A-Za-z0-9_-]{8,32}$/;
-/** 봉인된 { title, members } 의 최대 길이 (카드 수백 개를 연결해도 넉넉하게) */
+/** Max length of the sealed { title, members } (room for hundreds of linked cards) */
 const MAX_DATA = 64_000;
 
 const validData = (v: unknown): v is string => typeof v === 'string' && v.length <= MAX_DATA && SEALED_PATTERN.test(v);
 
 /**
- * 목표 API (계정 안에서만). 내용은 봉인돼 있어 서버는 검사하지 않고 보관·중계만 한다.
- *   GET    /api/goals[?closed=1]         목표 목록 (기본: 마치지 않은 것)
- *   POST   /api/goals {id, data}         만들기
- *   PUT    /api/goals/:id {version, data?, closed?}   고치기·마치기·다시 열기 — version 이 낡았으면 409 {goal: 최신}
- *   DELETE /api/goals/:id                지우기 (연결된 카드는 그대로)
- * 읽기 전용(구독 끝남)이면 만들기·고치기는 402. 지우기와 읽기는 된다.
+ * Goals API (account-scoped). Contents are sealed, so the server doesn't inspect them — it only stores and relays.
+ *   GET    /api/goals[?closed=1]         list goals (default: open ones)
+ *   POST   /api/goals {id, data}         create
+ *   PUT    /api/goals/:id {version, data?, closed?}   edit / close / reopen — 409 {goal: latest} if version is stale
+ *   DELETE /api/goals/:id                delete (linked cards stay)
+ * Read-only (subscription ended): create/edit return 402. Delete and read still work.
  */
 export function mountGoals(app: Hono<Env>, goals: GoalStore, access: AccessPolicy = allowAll) {
   const notFound = { error: 'not found' } as const;

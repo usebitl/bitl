@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-// Phase 0: 에이전트 hook/notify 페이로드를 원본 그대로 JSONL 파일에 덤프한다.
+// Phase 0: dumps raw agent hook/notify payloads as-is to a JSONL file.
 //
-// 사용법
-//   Claude Code / Codex hooks : node dump-hook.mjs --source claude-code   (페이로드는 stdin)
-//   Codex notify              : node dump-hook.mjs --source codex-notify  (페이로드는 마지막 argv)
+// Usage
+//   Claude Code / Codex hooks : node dump-hook.mjs --source claude-code   (payload on stdin)
+//   Codex notify              : node dump-hook.mjs --source codex-notify  (payload is the last argv)
 //
-// 저장 위치: $BITL_DUMP_DIR 또는 ~/.bitl/dumps/<source>-<YYYY-MM-DD>.jsonl
+// Location: $BITL_DUMP_DIR or ~/.bitl/dumps/<source>-<YYYY-MM-DD>.jsonl
 //
-// 원칙: 에이전트를 절대 방해하지 않는다.
-//   - stdout 에 아무것도 쓰지 않는다 (SessionStart/UserPromptSubmit 의 stdout 은 컨텍스트로 주입됨)
-//   - 어떤 오류가 나도 exit 0
+// Principle: never get in the agent's way.
+//   - write nothing to stdout (stdout of SessionStart/UserPromptSubmit is injected into the context)
+//   - exit 0 on any error
 
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const MAX_STRING = 4000; // tool_result 등 큰 문자열은 잘라서 저장
+const MAX_STRING = 4000; // truncate large strings such as tool_result before saving
 const STDIN_TIMEOUT_MS = 2000;
 
 function argValue(name) {
@@ -57,7 +57,7 @@ function readStdin() {
 async function main() {
   const source = argValue('--source') ?? 'unknown';
 
-  // Codex notify 는 JSON 을 마지막 인자로 넘긴다.
+  // Codex notify passes the JSON as the last argument.
   const lastArg = process.argv[process.argv.length - 1];
   const raw = lastArg?.trimStart().startsWith('{') ? lastArg : await readStdin();
 
@@ -71,7 +71,7 @@ async function main() {
   const record = {
     receivedAt: new Date().toISOString(),
     source,
-    // Antigravity 는 페이로드에 이벤트 이름이 없어 --event 로 받는다
+    // Antigravity payloads have no event name, so it comes via --event
     event: argValue('--event') ?? payload.hook_event_name ?? payload.type ?? null,
     pid: process.pid,
     ppid: process.ppid,
@@ -80,7 +80,7 @@ async function main() {
 
   const dir = process.env.BITL_DUMP_DIR ?? join(homedir(), '.bitl', 'dumps');
   mkdirSync(dir, { recursive: true });
-  const day = new Date().toLocaleDateString('sv-SE'); // 로컬 날짜 YYYY-MM-DD
+  const day = new Date().toLocaleDateString('sv-SE'); // local date YYYY-MM-DD
   appendFileSync(join(dir, `${source}-${day}.jsonl`), JSON.stringify(record) + '\n', 'utf8');
 }
 

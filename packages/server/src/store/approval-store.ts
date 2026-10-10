@@ -1,11 +1,11 @@
 import type { Driver, Row } from './types.js';
 
 /**
- * 원격 승인. PC 의 hook 이 올린 승인 요청을 폰이 허용·거부할 때까지 중계한다.
- * 서버는 내용(봉인된 요청)을 모르고, 결정의 서명을 만들 수도 없다 — 폰이 서명하고 PC 가 확인한다 (shared/approval.ts).
+ * Remote approval. Relays approval requests posted by the PC's hook until the phone allows or denies them.
+ * The server doesn't know the content (sealed request) and can't produce a decision signature — the phone signs and the PC verifies (shared/approval.ts).
  *
- * 원격 승인 모드(away 열 — 처음 이름 '자리 비움'): 켠 계정만 PC 의 hook 이 폰의 답을 기다린다.
- * 끄면 hook 은 바로 물러나 폰에 요청이 가지 않는다. 켜도 터미널 승인 창은 뜨고, 먼저 답한 쪽이 적용된다.
+ * Remote approval mode (the away column — originally named 'away mode'): the PC's hook waits for the phone's answer only for accounts that turned it on.
+ * When off, the hook backs off immediately and nothing goes to the phone. When on, the terminal prompt still appears and whichever side answers first applies.
  */
 export const APPROVAL_SCHEMA = `
 CREATE TABLE IF NOT EXISTS approvals (
@@ -29,16 +29,16 @@ CREATE TABLE IF NOT EXISTS account_prefs (
 );
 `;
 
-/** pending → allow | deny (폰의 결정) | cancelled (PC 가 그만 기다림) | expired */
+/** pending → allow | deny (phone's decision) | cancelled (PC stopped waiting) | expired */
 export type ApprovalStatus = 'pending' | 'allow' | 'deny' | 'cancelled' | 'expired';
 
 export interface Approval {
   id: string;
   sessionKey: string;
-  /** 봉인된 요청 (AAD = 승인 id) */
+  /** Sealed request (AAD = approval id) */
   request: string;
   status: ApprovalStatus;
-  /** 폰의 서명 (allow·deny 일 때) */
+  /** Phone's signature (for allow/deny) */
   sig?: string;
   createdAt: string;
   expiresAt: string;
@@ -47,9 +47,9 @@ export interface Approval {
 
 export type ApprovalChange = { accountId: string; approval: Approval };
 
-/** 요청 하나가 기다릴 수 있는 최대 시간 */
+/** Max time a single request can wait */
 export const MAX_APPROVAL_TTL_MS = 60 * 60_000;
-/** 결정된·만료된 요청을 남겨 두는 기간 */
+/** How long decided/expired requests are kept */
 const KEEP_MS = 7 * 86_400_000;
 
 const toApproval = (r: Row): Approval => ({
@@ -81,7 +81,7 @@ export class ApprovalStore {
       try {
         fn({ accountId, approval });
       } catch {
-        // 구독자 하나의 오류가 다른 구독자를 막지 않게
+        // So one subscriber's error doesn't block the others
       }
     }
   }
@@ -100,7 +100,7 @@ export class ApprovalStore {
     });
   }
 
-  /** 새 요청. 같은 id 가 이미 있으면 false (PC 가 무작위로 만들므로 사실상 일어나지 않는다) */
+  /** New request. false if the id already exists (practically never, since the PC generates it randomly) */
   async create(
     accountId: string,
     a: { id: string; sessionKey: string; request: string; deviceId?: string; ttlMs: number },
@@ -127,7 +127,7 @@ export class ApprovalStore {
     return rows[0] ? toApproval(rows[0]) : undefined;
   }
 
-  /** 아직 답을 기다리는 요청 (만료 전) */
+  /** Requests still awaiting an answer (not yet expired) */
   async listPending(accountId: string, now = new Date()): Promise<Approval[]> {
     const { rows } = await this.db.query(
       `SELECT ${COLUMNS} FROM approvals WHERE account_id = ? AND status = 'pending' AND expires_at > ? ORDER BY created_at`,
@@ -137,8 +137,8 @@ export class ApprovalStore {
   }
 
   /**
-   * pending 인 요청만 바꾼다 (먼저 온 결정이 이긴다). 바꿨으면 바뀐 요청, 아니면 undefined.
-   * 결정(allow·deny)은 만료 전에만 받는다.
+   * Only changes pending requests (first decision wins). Returns the updated request, or undefined.
+   * Decisions (allow/deny) are accepted only before expiry.
    */
   async settle(accountId: string, id: string, to: Exclude<ApprovalStatus, 'pending'>, sig?: string, now = new Date()): Promise<Approval | undefined> {
     const decided = to === 'allow' || to === 'deny';
@@ -155,8 +155,8 @@ export class ApprovalStore {
   }
 
   /**
-   * 이 카드의 기다리는 요청을 모두 닫는다 (cancelled). 바뀐 수.
-   * 터미널에서 먼저 답하면 Claude Code 가 이어서 진행해 카드가 "나를 기다림"을 벗어난다 — 그때 폰·보드의 요청을 치운다
+   * Closes all pending requests for this card (cancelled). Returns the count.
+   * If answered in the terminal first, Claude Code carries on and the card leaves "waiting for you" — then the phone/board requests are cleared
    */
   async cancelForSession(accountId: string, sessionKey: string, now = new Date()): Promise<number> {
     const { rows } = await this.db.query(`SELECT id FROM approvals WHERE account_id = ? AND session_key = ? AND status = 'pending'`, [accountId, sessionKey]);
@@ -165,7 +165,7 @@ export class ApprovalStore {
     return n;
   }
 
-  /** 만료된 요청을 expired 로, 오래된 기록은 지운다 (모든 계정). 만료로 바꾼 수 */
+  /** Marks timed-out requests expired and deletes old records (all accounts). Returns the number expired */
   async sweep(now = new Date()): Promise<number> {
     const t = now.toISOString();
     const { rows } = await this.db.query(`SELECT account_id, ${COLUMNS} FROM approvals WHERE status = 'pending' AND expires_at <= ?`, [t]);

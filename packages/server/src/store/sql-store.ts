@@ -9,14 +9,14 @@ import { acknowledge, applyEvent, markStale, type TurnOp } from '../state.js';
 import type { Driver, ListOptions, Query, Row, SessionEdit, SessionStore, StoreChange } from './types.js';
 
 /**
- * SQLite·Postgres 공용 저장소. SQL 은 두 DB 가 모두 이해하는 부분만 쓴다 (ON CONFLICT … excluded, CAST, LIMIT).
- * 시각은 UTC ISO 8601 문자열 그대로 저장한다 — 문자열 순서 = 시간 순서 (state.ts 와 같은 규칙).
+ * Store shared by SQLite and Postgres. SQL sticks to what both DBs understand (ON CONFLICT … excluded, CAST, LIMIT).
+ * Times are stored as UTC ISO 8601 strings — string order = time order (same rule as state.ts).
  */
 export class SqlStore implements SessionStore {
   private listeners = new Set<(change: StoreChange) => void>();
 
   constructor(
-    /** 같은 DB 를 쓰는 다른 저장소(CloudStore)와 공유한다 */
+    /** Shared with other stores on the same DB (CloudStore) */
     readonly db: Driver,
     readonly backupPath?: string,
   ) {}
@@ -34,7 +34,7 @@ export class SqlStore implements SessionStore {
     for (const fn of this.listeners) fn(change);
   }
 
-  /** 계정·세션 키를 섞이지 않게 묶는다 (Postgres 문자열에는 NUL 을 쓸 수 없다) */
+  /** Combines account and session key unambiguously (Postgres strings can't contain NUL) */
   private static lockKey = (accountId: string, key: string) => JSON.stringify([accountId, key]);
 
   private static async read(q: Query, accountId: string, key: string): Promise<StoredSession | undefined> {
@@ -53,7 +53,7 @@ export class SqlStore implements SessionStore {
 
   private static async applyTurn(q: Query, accountId: string, key: string, op: TurnOp) {
     const turnId = op.turnId ?? null;
-    // turnId 가 같은 열린 턴, 없으면 가장 최근 열린 턴
+    // The open turn with the same turnId, else the most recent open turn
     const { rows } = await q(
       `SELECT id FROM turns WHERE account_id = ? AND session_key = ? AND status = 'running'
        AND (CAST(? AS TEXT) IS NULL OR turn_id = ? OR turn_id IS NULL) ORDER BY id DESC LIMIT 1`,
@@ -62,7 +62,7 @@ export class SqlStore implements SessionStore {
     const open = rows[0]?.id;
 
     if (op.op === 'start') {
-      // 이전 턴이 turn_end 없이 끝났으면 닫는다
+      // Close the previous turn if it ended without turn_end
       await q(`UPDATE turns SET status = 'done', ended_at = ? WHERE account_id = ? AND session_key = ? AND status = 'running'`, [op.at, accountId, key]);
       await q(`INSERT INTO turns (account_id, session_key, turn_id, prompt, status, started_at, tool_count) VALUES (?, ?, ?, ?, 'running', ?, 0)`, [
         accountId,
@@ -78,7 +78,7 @@ export class SqlStore implements SessionStore {
     }
   }
 
-  /** 세션 하나를 읽고-바꾸고-쓰기. 같은 세션의 변경끼리는 순서대로 (lockKey) */
+  /** Read-modify-write one session. Changes to the same session are serialized (lockKey) */
   private async update(
     accountId: string,
     key: string,
@@ -156,8 +156,8 @@ export class SqlStore implements SessionStore {
   }
 
   /**
-   * 세션 상세 타임라인 (최신순). 참고용(notice) 이벤트는 빼고,
-   * 도구 완료(tool_end)는 시작과 중복이라 실패한 것만 남긴다.
+   * Session detail timeline (newest first). Informational (notice) events are excluded,
+   * and tool completions (tool_end) duplicate the start, so only failed ones are kept.
    */
   async listTimeline(accountId: string, key: string, limit = 200): Promise<StoredTimelineItem[]> {
     const { rows } = await this.db.query(
@@ -201,8 +201,8 @@ export class SqlStore implements SessionStore {
   }
 
   /**
-   * 종료된 카드를 기록째 지운다 (보드의 "종료 → 모두 지우기"). keys 를 주면 그중 종료된 것만 (목표로 거른 화면).
-   * 목록을 읽은 뒤 새 이벤트로 다시 살아난 카드는 지우지 않도록, 지울 때 잠근 채로 상태를 다시 본다. 지운 수를 돌려준다
+   * Deletes ended cards with their history (the board's "Ended → Clear all"). With keys, only the ended ones among them (goal-filtered view).
+   * To spare cards revived by a new event after the list was read, the status is rechecked under lock while deleting. Returns the number deleted
    */
   async deleteEnded(accountId: string, keys?: string[]): Promise<number> {
     const { rows } = await this.db.query(`SELECT key FROM sessions WHERE account_id = ? AND status = 'ended' AND archived = 0`, [accountId]);
@@ -230,7 +230,7 @@ export class SqlStore implements SessionStore {
     const { rows } = await this.db.query(`SELECT account_id, key FROM sessions WHERE status = 'running'`);
     let n = 0;
     for (const r of rows) {
-      // 목록을 읽은 뒤 새 이벤트가 왔을 수 있으니 잠근 채로 다시 판단한다
+      // A new event may have arrived after the list was read, so recheck under lock
       await this.update(r.account_id as string, r.key as string, (cur) => {
         const next = markStale(cur, now);
         if (next) n++;

@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from './i18n.js';
 
-/** 보드에 필요한 Claude Code hook 이벤트 */
+/** Claude Code hook events the board needs */
 export const CLAUDE_EVENTS = [
   'SessionStart',
   'SessionEnd',
@@ -21,20 +21,20 @@ export const CLAUDE_EVENTS = [
   'CwdChanged',
 ] as const;
 
-/** 우리가 넣은 hook 인지 구분하는 표식 (command 에 포함) */
+/** Marker identifying hooks we added (contained in command) */
 const MARKERS = ['bitl-hook.mjs', 'bitl-approve.mjs'];
 
 const here = dirname(fileURLToPath(import.meta.url));
 /**
- * hook 이 실행할 어댑터 폴더. 저장소에서는 packages/adapters, npm 패키지(@usebitl/cli)에서는 실행할 때마다 복사해 두는
- * ~/.bitl/adapters (BITL_ADAPTER_DIR) — npm 전역 폴더는 Node 버전(nvm 등)에 따라 바뀌어 hook 이 끊길 수 있어서
+ * Adapter folder the hooks run. In the repo it is packages/adapters; in the npm package (@usebitl/cli) it is
+ * ~/.bitl/adapters (BITL_ADAPTER_DIR), copied on every run — the global npm folder changes with the Node version (nvm etc.) and hooks could break
  */
 const ADAPTER_DIR = process.env.BITL_ADAPTER_DIR ?? resolve(here, '../../adapters');
 export const ADAPTER_PATH = resolve(ADAPTER_DIR, 'bitl-hook.mjs').replaceAll('\\', '/');
 export const APPROVE_PATH = resolve(ADAPTER_DIR, 'bitl-approve.mjs').replaceAll('\\', '/');
 /**
- * 원격 승인 hook 의 시간 제한(초). hook 은 원격 승인이 켜졌을 때만 폰의 답을 기다린다 (기본 10분, bitl-approve.mjs).
- * 그보다 길게 둬서 hook 이 스스로 그만 기다리고 정리하게 한다 (Claude Code 가 먼저 끊지 않게)
+ * Timeout (seconds) of the remote approval hook. The hook waits for the phone's answer only when remote approval is on (default 10 min, bitl-approve.mjs).
+ * Set longer than that so the hook gives up and cleans up on its own (before Claude Code cuts it off)
  */
 export const APPROVE_TIMEOUT_SEC = 660;
 
@@ -47,7 +47,7 @@ export const hookCommand = (source = 'claude-code', adapter = ADAPTER_PATH) => `
 const isOurs = (h: HookEntry) => typeof h.command === 'string' && MARKERS.some((m) => h.command!.includes(m));
 export const approveCommand = (adapter = APPROVE_PATH) => `node "${adapter}" --source claude-code`;
 
-/** settings 에서 우리 hook 을 모두 뺀다. 다른 hook 은 건드리지 않는다. */
+/** Removes all our hooks from settings. Other hooks are left alone. */
 export function removeHooks(settings: Settings): Settings {
   if (!settings.hooks) return settings;
   const hooks: Record<string, HookGroup[]> = {};
@@ -61,14 +61,14 @@ export function removeHooks(settings: Settings): Settings {
   return Object.keys(hooks).length ? { ...rest, hooks } : rest;
 }
 
-/** 우리 hook 을 (기존 것은 교체하며) 추가한다. 여러 번 실행해도 결과가 같다. */
+/** Adds our hooks (replacing existing ones). Idempotent. */
 export function addHooks(settings: Settings, command = hookCommand(), approve: string | null = approveCommand()): Settings {
   const base = removeHooks(settings);
   const hooks = { ...(base.hooks ?? {}) };
   for (const event of CLAUDE_EVENTS) {
     hooks[event] = [...(hooks[event] ?? []), { matcher: '*', hooks: [{ type: 'command', command, async: true, timeout: 10 }] }];
   }
-  // 원격 승인: 결과(allow/deny)를 돌려줘야 하므로 동기 hook. 원격 승인이 꺼져 있으면 바로 끝난다
+  // Remote approval: a sync hook since it must return a result (allow/deny). Exits immediately when remote approval is off
   if (approve) {
     hooks.PermissionRequest = [
       ...(hooks.PermissionRequest ?? []),
@@ -80,7 +80,7 @@ export function addHooks(settings: Settings, command = hookCommand(), approve: s
 
 export type UpdateResult = { changed: boolean; backup?: string };
 
-/** 설정 파일을 백업한 뒤 변경을 쓴다. 바뀐 게 없으면 쓰지 않는다. */
+/** Backs up the settings file, then writes the change. Writes nothing if nothing changed. */
 export function updateTextFile(file: string, change: (text: string) => string): UpdateResult {
   const before = existsSync(file) ? readFileSync(file, 'utf8') : '';
   const after = change(before);
@@ -95,7 +95,7 @@ export function updateTextFile(file: string, change: (text: string) => string): 
   return { changed: true, backup };
 }
 
-/** JSON 설정 파일용. 의미가 같으면(키 순서·공백 차이만) 쓰지 않는다. */
+/** For JSON settings files. Skips the write if semantically equal (only key order/whitespace differ). */
 export function updateSettingsFile(file: string, change: (s: Settings) => Settings): UpdateResult {
   return updateTextFile(file, (text) => {
     const before = (text.trim() ? JSON.parse(text) : {}) as Settings;
@@ -105,9 +105,9 @@ export function updateSettingsFile(file: string, change: (s: Settings) => Settin
 }
 
 // ─── Codex (~/.codex/config.toml) ──────────────────────────────────────────────
-// TOML 파서 없이 우리 hook 표만 추가/제거한다. 사용자의 다른 설정은 건드리지 않는다.
-// Codex 는 /hooks 에서 신뢰를 저장할 때 파일을 통째로 다시 써서 [hooks.state] 를 표식 블록 안에 넣기도 한다
-// → 제거는 표식 범위가 아니라 "command 에 우리 어댑터가 든 [[hooks.X.hooks]] 표와 그 빈 [[hooks.X]] 머리"만 지운다.
+// Adds/removes only our hook tables without a TOML parser. The user's other settings are left alone.
+// When saving trust from /hooks, Codex rewrites the whole file and may put [hooks.state] inside our marker block
+// → removal deletes not the marker range but only "[[hooks.X.hooks]] tables whose command has our adapter, and their empty [[hooks.X]] headers".
 
 export const CODEX_EVENTS = [
   'SessionStart',
@@ -122,7 +122,7 @@ export const CODEX_EVENTS = [
   'Interrupt',
 ] as const;
 
-/** Codex 가 timeout 을 최대 3초로 깎는 이벤트 (넘기면 실행마다 경고) */
+/** Events for which Codex caps timeout at 3 seconds (exceeding it warns on every run) */
 const CODEX_SHORT_EVENTS: ReadonlySet<string> = new Set(['SessionEnd', 'Interrupt']);
 
 const CODEX_BEGIN = '# >>> bitl (bitl install codex) >>>';
@@ -131,7 +131,7 @@ const CODEX_END = '# <<< bitl <<<';
 export const codexConfigPath = () => join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'config.toml');
 
 export function removeCodexBlock(toml: string): string {
-  // 표 머리([...]) 마다 구역을 나눈다. 첫 구역은 머리 없는 앞부분
+  // Split into sections at each table header ([...]). The first section is the header-less preamble
   const sections: string[][] = [[]];
   for (const line of toml.split('\n')) {
     const t = line.trim();
@@ -154,24 +154,24 @@ export function removeCodexBlock(toml: string): string {
 }
 
 export function addCodexBlock(toml: string, command = hookCommand('codex')): string {
-  // TOML literal string('...') 은 안의 큰따옴표를 그대로 둔다
+  // A TOML literal string ('...') keeps inner double quotes as is
   const lines = [CODEX_BEGIN];
   for (const event of CODEX_EVENTS) {
     lines.push(`[[hooks.${event}]]`, `[[hooks.${event}.hooks]]`, 'type = "command"', `command = '${command}'`, 'async = true', `timeout = ${CODEX_SHORT_EVENTS.has(event) ? 3 : 10}`, '');
   }
-  // 원격 승인(동기 PermissionRequest hook)은 넣지 않는다: Codex 는 hook 이 답할 때까지 터미널 승인 창을 띄우지 않아
-  // 원격 승인이 켜져 있으면 PC 앞에서 승인할 수 없게 된다 — bitl 은 에이전트를 방해하지 않는다 (2026-10-03 확인)
+  // No remote approval (sync PermissionRequest hook): Codex does not show its terminal approval prompt until the hook answers,
+  // so with remote approval on you could not approve at the PC — bitl never gets in the agent's way (verified 2026-10-03)
   lines[lines.length - 1] = CODEX_END;
   const base = removeCodexBlock(toml);
   return (base ? base.replace(/\n*$/, '\n\n') : '') + lines.join('\n') + '\n';
 }
 
 // ─── Antigravity (~/.gemini/config/hooks.json) ─────────────────────────────────
-// 이름 붙은 hook 묶음({ "<이름>": { "<이벤트>": [...] } }) 중 "bitl" 만 넣고 뺀다. CLI·IDE 가 같은 파일을 읽는다.
-// 주의 (agy 1.2, Windows 에서 확인):
-//   - command 를 셸 없이 실행해 따옴표가 그대로 인자로 간다 → 경로를 따옴표로 감쌀 수 없다 (공백 있는 경로는 거부)
-//   - hook 이 실패하면 도구 실행이 막힌다 → 어댑터는 항상 exit 0
-//   - 페이로드에 이벤트 이름이 없다 → --event 로 넘긴다
+// Of the named hook groups ({ "<name>": { "<event>": [...] } }), only "bitl" is added/removed. The CLI and IDE read the same file.
+// Caveats (verified with agy 1.2 on Windows):
+//   - command runs without a shell, so quotes are passed literally as arguments → paths cannot be quoted (paths with spaces are rejected)
+//   - a failing hook blocks the tool call → adapters always exit 0
+//   - the payload has no event name → pass it via --event
 
 export const ANTIGRAVITY_EVENTS = ['PreInvocation', 'PreToolUse', 'PostToolUse', 'Stop'] as const;
 const ANTIGRAVITY_TOOL_EVENTS: ReadonlySet<string> = new Set(['PreToolUse', 'PostToolUse']);
@@ -201,9 +201,9 @@ export function removeAntigravityHooks(config: NamedHooks): NamedHooks {
 export const MCP_PATH = resolve(ADAPTER_DIR, 'bitl-mcp.mjs').replaceAll('\\', '/');
 
 /**
- * Windows 스토어(MSIX) 설치본은 앱이 보는 %APPDATA% 가 패키지 폴더로 가상화된다:
+ * For Windows Store (MSIX) installs, the %APPDATA% the app sees is virtualized into the package folder:
  *   %LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude
- * 밖에서 %APPDATA%\Claude 에 쓰면 앱이 읽지 않으므로, 패키지 폴더가 있으면 그쪽을 쓴다.
+ * The app ignores writes to %APPDATA%\Claude from outside, so use the package folder when it exists.
  */
 export function msixClaudeDir(localAppData = process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local')): string | undefined {
   const packages = join(localAppData, 'Packages');
@@ -213,7 +213,7 @@ export function msixClaudeDir(localAppData = process.env.LOCALAPPDATA ?? join(ho
       if (existsSync(dir)) return dir;
     }
   } catch {
-    // Packages 폴더 없음
+    // no Packages folder
   }
   return undefined;
 }

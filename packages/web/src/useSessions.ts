@@ -6,37 +6,37 @@ import { contentKeys, onKeysChanged } from './keys';
 
 export type Connection = 'connecting' | 'live' | 'offline';
 
-/** 이 브라우저의 키. undefined: 읽는 중, null: 없음 (카드 내용이 🔒 로 보인다) */
+/** This browser's keys. undefined: loading, null: none (card contents show as 🔒) */
 export function useContentKeys(): ContentKeys | null | undefined {
   const [keys, setKeys] = useState<ContentKeys | null | undefined>(undefined);
   useEffect(() => {
     contentKeys().then(setKeys, () => setKeys(null));
-    return onKeysChanged(setKeys); // 기기 연결로 키를 받으면 바로 카드 내용이 보이게
+    return onKeysChanged(setKeys); // show card contents as soon as keys arrive via device pairing
   }, []);
   return keys;
 }
 
 /**
- * SSE 로 세션 목록을 실시간 유지한다. EventSource 가 끊기면 브라우저가 자동 재연결한다.
- * 서버가 보내는 것은 암호문 — 여기서 풀어서 화면용 세션으로 바꾼다. 복호화는 비동기라 도착 순서대로 처리한다.
+ * Keeps the session list live via SSE. If the EventSource drops, the browser reconnects automatically.
+ * The server sends ciphertext — decrypted here into display sessions. Decryption is async, so events are processed in arrival order.
  */
 export function useSessions(keys: ContentKeys | null | undefined) {
   const [sessions, setSessions] = useState<Map<string, Session>>(new Map());
   const [connection, setConnection] = useState<Connection>('connecting');
-  /** 원격 승인: 기다리는 요청 (id → 요청) */
+  /** Remote approval: pending requests (id → request) */
   const [approvals, setApprovals] = useState<Map<string, Approval>>(new Map());
-  /** 목표: 마치지 않은 것 (id → 목표) */
+  /** Goals: unfinished ones (id → goal) */
   const [goals, setGoals] = useState<Map<string, Goal>>(new Map());
 
   useEffect(() => {
-    if (keys === undefined) return; // 키를 읽은 뒤에 연결
+    if (keys === undefined) return; // connect after keys are loaded
     let chain = Promise.resolve();
     const inOrder = (fn: () => Promise<void>) => {
       chain = chain.then(fn).catch(() => {});
     };
     const openAll = (list: StoredSession[]) => Promise.all(list.map((s) => openSession(keys, s)));
 
-    // SSE 가 늦거나 막히는 환경(프록시, 웹뷰)에서도 보드가 비지 않도록 목록을 먼저 한 번 읽는다
+    // fetch the list once first so the board isn't empty where SSE is slow or blocked (proxies, webviews)
     let gotSnapshot = false;
     fetch('/api/sessions?ended=1')
       .then((r) => (r.ok ? (r.json() as Promise<StoredSession[]>) : null))
@@ -135,7 +135,7 @@ export function useSessions(keys: ContentKeys | null | undefined) {
   return { sessions: [...sessions.values()], approvals: [...approvals.values()], goals: goalList, connection };
 }
 
-/** 상대 시간 표시를 주기적으로 갱신하기 위한 현재 시각 */
+/** Current time, ticking periodically to refresh relative time displays */
 export function useNow(intervalMs = 15_000): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {

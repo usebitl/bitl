@@ -1,17 +1,17 @@
-// npm 에 낸 bitl CLI(@usebitl/cli) 버전 — 웹의 기기 화면이 작업 PC 의 bitl 이 오래됐는지 알려 준다.
-// npm publish 를 마친 뒤에 올리고 배포한다 (먼저 올리면 아직 없는 버전으로 업데이트하라고 안내하게 된다).
-// cli/npm/package.json 의 version 과 같아야 한다 — test/release.test.ts 가 확인.
+// bitl CLI (@usebitl/cli) version published to npm — the web devices screen uses it to tell whether bitl on a work PC is outdated.
+// Bump and deploy only after npm publish finishes (bumping first would tell users to update to a version that doesn't exist yet).
+// Must match the version in cli/npm/package.json — checked by test/release.test.ts.
 
-/** 지금 npm 의 최신 버전 */
-export const CLI_LATEST = '0.1.4';
+/** Current latest version on npm */
+export const CLI_LATEST = '0.1.5';
 
 /**
- * 꼭 업데이트해야 하는 버전 (서버 형식 변경·보안 문제). below 보다 낮은 PC 가 있으면 화면 위에 안내한다.
- * from: 그날부터 옛 버전이 작업을 보내지 못한다 (YYYY-MM-DD). 평소에는 undefined.
+ * Mandatory update version (server format change, security issue). If any PC is below `below`, a notice is shown at the top of the screen.
+ * from: from that date old versions can no longer send tasks (YYYY-MM-DD). Normally undefined.
  */
 export const CLI_REQUIRED: { below: string; from: string } | undefined = undefined;
 
-/** "0.1.10" > "0.1.9". 형식이 다르면 NaN 대신 0 으로 본다 */
+/** "0.1.10" > "0.1.9". Malformed parts count as 0 instead of NaN */
 export function compareVersions(a: string, b: string): number {
   const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
   const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
@@ -24,7 +24,7 @@ export function compareVersions(a: string, b: string): number {
 
 export const VERSION_PATTERN = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 
-/** 작업 PC 의 bitl 상태: 최신 · 업데이트 있음 · 꼭 업데이트 · 알 수 없음(0.1.3 이하는 버전을 알리지 않는다) */
+/** bitl status on a work PC: latest · update available · update required · unknown (0.1.3 and earlier don't report their version) */
 export type CliStatus = 'latest' | 'update' | 'required' | 'unknown';
 
 export function cliStatus(version: string | undefined): CliStatus {

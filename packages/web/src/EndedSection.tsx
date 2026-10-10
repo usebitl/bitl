@@ -2,13 +2,13 @@ import { displayTitle, type Session } from '@bitl/shared/client';
 import { useEffect, useRef, useState } from 'react';
 import { deleteEnded } from './api';
 import { localTime, SOURCE_LABEL } from './format';
-import { t } from './i18n';
+import { t, titleLabels } from './i18n';
 
 /**
- * 네 열 아래의 "종료" 구역 — 에이전트가 끝낸 세션. 0건이어도 늘 보인다 (카드가 많아져도 이 구역이 있다는 걸 알게).
- * 지금 흐름과 상관없어 기본은 접어 두고(이 브라우저에 기억),
- * 펼치면 제목 한 줄짜리 작은 카드로 보여 준다. "모두 지우기"는 한 번 더 묻고 기록째 지운다.
- * 목표로 거른 화면에서는 그 목표의 종료 카드만 받고, 지우기도 그 카드만.
+ * The "Ended" section below the four columns — sessions the agent has ended. Always visible, even when empty (so people know it exists as cards pile up).
+ * It is unrelated to the current flow, so it is collapsed by default (remembered in this browser);
+ * expanded, it shows small one-line title cards. "Clear all" asks once more, then deletes along with history.
+ * When filtered by a goal, it gets only that goal's ended cards, and clearing affects only those.
  */
 const OPEN_KEY = 'bitl.endedOpen';
 const RECENT = 8;
@@ -37,11 +37,11 @@ export function EndedSection({
   scoped,
   canEdit,
 }: {
-  /** 종료된 카드 (최근 종료 순) */
+  /** Ended cards (most recently ended first) */
   sessions: Session[];
   now: number;
   onOpen: (key: string) => void;
-  /** 목표로 거른 화면이면 true — 지우기를 이 카드들로 한정 */
+  /** true when filtered by a goal — limits clearing to these cards */
   scoped: boolean;
   canEdit: boolean;
 }) {
@@ -49,7 +49,7 @@ export function EndedSection({
   const [all, setAll] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  /** 지운 뒤 화면 아래 안내 (지운 수) */
+  /** Notice at the bottom after clearing (number deleted) */
   const [done, setDone] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -60,7 +60,7 @@ export function EndedSection({
     try {
       localStorage.setItem(OPEN_KEY, next ? '1' : '0');
     } catch {
-      // 이번 방문만
+      // this visit only
     }
   };
   const clear = async () => {
@@ -144,7 +144,7 @@ export function EndedSection({
                     {s.gitBranch ? `@${s.gitBranch}` : ''}
                   </span>
                 </span>
-                <span className="truncate text-sm font-medium">{displayTitle(s)}</span>
+                <span className="truncate text-sm font-medium">{displayTitle(s, titleLabels())}</span>
                 <span className="text-xs text-zinc-500">{t('ended.at', { t: localTime(s.endedAt ?? s.statusAt, now) })}</span>
               </button>
             ))}

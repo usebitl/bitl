@@ -1,8 +1,8 @@
 import { readFile, stat } from 'node:fs/promises';
 
-// Antigravity hook 페이로드에는 질문·답변 원문이 없다 → 트랜스크립트(transcriptPath, JSONL)에서 채운다.
-//   { step_index, type: 'USER_INPUT', content: '<USER_REQUEST>\n질문\n</USER_REQUEST>\n<ADDITIONAL_METADATA>…' }
-//   { step_index, type: 'PLANNER_RESPONSE', content: '답변' }
+// Antigravity hook payloads have no question/answer text → fill it from the transcript (transcriptPath, JSONL).
+//   { step_index, type: 'USER_INPUT', content: '<USER_REQUEST>\nquestion\n</USER_REQUEST>\n<ADDITIONAL_METADATA>…' }
+//   { step_index, type: 'PLANNER_RESPONSE', content: 'answer' }
 
 type Raw = Record<string, unknown>;
 interface Step {
@@ -13,7 +13,7 @@ interface Step {
 
 const MAX_TRANSCRIPT_BYTES = 20 * 1024 * 1024;
 const RETRY_MS = 150;
-const RETRIES = 6; // hook 이 트랜스크립트 기록보다 먼저 올 수 있다 — 1초 남짓 기다린다
+const RETRIES = 6; // the hook can arrive before the transcript is written — wait a little over a second
 
 async function readSteps(path: string): Promise<Step[]> {
   try {
@@ -24,7 +24,7 @@ async function readSteps(path: string): Promise<Step[]> {
       try {
         steps.push(JSON.parse(line) as Step);
       } catch {
-        // 쓰는 중인 마지막 줄
+        // last line still being written
       }
     }
     return steps;
@@ -33,20 +33,20 @@ async function readSteps(path: string): Promise<Step[]> {
   }
 }
 
-/** USER_INPUT content 에서 사용자가 쓴 부분만 */
+/** Only the part the user wrote, from USER_INPUT content */
 export function userRequestText(content: string): string {
   const m = /<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/.exec(content);
   return (m?.[1] ?? content).trim();
 }
 
-/** PreInvocation(첫 호출)에는 prompt, Stop 에는 last_assistant_message 를 채운 페이로드. 못 찾으면 그대로 */
+/** Payload with prompt filled for PreInvocation (first call) and last_assistant_message for Stop. Unchanged if not found */
 export async function fillAntigravityText(payload: Raw): Promise<Raw> {
   const path = typeof payload.transcriptPath === 'string' ? payload.transcriptPath : undefined;
   const event = payload.hook_event_name;
   if (!path) return payload;
 
   if (event === 'PreInvocation' && payload.invocationNum === 0 && payload.prompt === undefined) {
-    // 이번 질문은 initialNumSteps - 1 번째 단계
+    // this question is step initialNumSteps - 1
     const index = typeof payload.initialNumSteps === 'number' ? payload.initialNumSteps - 1 : undefined;
     for (let i = 0; i <= RETRIES; i++) {
       const steps = await readSteps(path);
@@ -65,17 +65,17 @@ export async function fillAntigravityText(payload: Raw): Promise<Raw> {
   return payload;
 }
 
-// ─── 승인 대기 감시 (bitl-agy-watch.mjs) ──────────────────────────────────────
-// agy 대화 DB(~/.gemini/antigravity-cli/conversations/<id>.db)의 steps.status 를 관찰해 정한 값 (agy 1.2.16, 공개 규격 아님).
-// 값이 바뀌면 "알림이 오지 않는" 쪽으로만 틀리게: 모르는 값은 무시하고, 9 를 보기 전에는 아무것도 보내지 않는다.
+// ─── Approval-wait watcher (bitl-agy-watch.mjs) ──────────────────────────────────────
+// Values determined by observing steps.status in the agy conversation DB (~/.gemini/antigravity-cli/conversations/<id>.db) (agy 1.2.16, not a public spec).
+// If the values change, fail only toward "no notification": unknown values are ignored, and nothing is sent before seeing 9.
 export const AGY_STEP = { RUNNING: 2, DONE: 3, CANCELLED: 6, REJECTED: 7, WAITING: 9 } as const;
 
 export type AgyWatchAction = 'none' | 'waiting' | 'resolved' | 'stop';
 
-/** 단계 상태 하나를 보고 할 일. waited: 이미 승인 대기를 알렸는가 */
+/** What to do given one step status. waited: whether an approval wait was already reported */
 export function agyWatchStep(status: number | undefined, waited: boolean): AgyWatchAction {
   if (status === AGY_STEP.WAITING) return waited ? 'none' : 'waiting';
   if (status === AGY_STEP.DONE || status === AGY_STEP.CANCELLED || status === AGY_STEP.REJECTED) return waited ? 'resolved' : 'stop';
-  if (status === AGY_STEP.RUNNING && waited) return 'resolved'; // 승인됨 → 실행 중 (끝나면 PostToolUse 가 온다)
+  if (status === AGY_STEP.RUNNING && waited) return 'resolved'; // approved → running (PostToolUse arrives when it finishes)
   return 'none';
 }

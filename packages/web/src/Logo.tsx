@@ -1,6 +1,6 @@
 /**
- * BITL 로고 — 끊긴 고리(흐름, loop) 와 그 틈의 빨간 신호(나를 기다리는 작업).
- * 원본: public/icon.svg (앱 아이콘), public/favicon.svg (작은 크기용으로 선을 굵게)
+ * BITL logo — a broken ring (the flow, a loop) with a red signal in the gap (a task waiting for you).
+ * Sources: public/icon.svg (app icon), public/favicon.svg (thicker strokes for small sizes)
  */
 export function Logo({ size = 24, className }: { size?: number; className?: string }) {
   return (

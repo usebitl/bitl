@@ -1,6 +1,6 @@
 /**
- * 계정이 새로 쓸 수 있는가 (이벤트 수집·목표·원격 승인·알림).
- * 로컬 모드는 늘 쓸 수 있다. 클라우드 서버는 여기에 요금제(체험·구독·읽기 전용)를 끼운다.
+ * Whether the account may write new data (event ingest, goals, remote approval, notifications).
+ * Local mode can always write. The cloud server plugs billing (trial, subscription, read-only) in here.
  */
 export interface AccessPolicy {
   canWrite(accountId: string): Promise<boolean>;

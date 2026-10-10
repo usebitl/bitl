@@ -1,18 +1,18 @@
-// 내용 암호화 — 어댑터(Node)와 브라우저가 같은 코드를 쓴다 (WebCrypto: globalThis.crypto.subtle).
+// Content encryption — the adapters (Node) and the browser share this code (WebCrypto: globalThis.crypto.subtle).
 //
-// 계정 내용 키(마스터 32바이트) 하나에서 HKDF 로 용도별 키를 만든다:
-//   enc: AES-256-GCM — 필드마다 따로 암호화
-//   tag: HMAC-SHA-256 — "같은 값인가"만 서버가 비교할 수 있게 (예: 같은 요청인지)
-//   kid: 키 식별자 — 다른 키로 암호화된 값을 알아보기 위해
+// One account content key (32-byte master) yields per-purpose keys via HKDF:
+//   enc: AES-256-GCM — each field encrypted separately
+//   tag: HMAC-SHA-256 — lets the server compare only "is it the same value" (e.g. same request)
+//   kid: key identifier — to recognize values encrypted with a different key
 //
-// 암호문 형식: v1.<kid>.<iv>.<ciphertext+tag>  (모두 base64url)
-// AAD 로 세션 키(`source:sessionId`)를 묶는다 — 서버가 암호문을 다른 세션으로 옮겨 붙이면 복호화가 실패한다.
-// 평문은 32바이트 단위로 패딩해서(ISO/IEC 7816-4) 짧은 값의 길이가 그대로 드러나지 않게 한다.
+// Ciphertext format: v1.<kid>.<iv>.<ciphertext+tag>  (all base64url)
+// The session key (`source:sessionId`) is bound as AAD — if the server moves a ciphertext to another session, decryption fails.
+// Plaintext is padded to 32-byte blocks (ISO/IEC 7816-4) so the length of short values isn't revealed as is.
 //
-// 클라우드 세션(원격 MCP)용 받은편지함 형식: s1.<일회용 공개키>.<iv>.<ciphertext+tag>
-//   클라우드의 Claude 는 계정 키를 가질 수 없어 내용을 평문으로 서버에 보낸다. 서버는 받자마자 계정의 받은편지함 공개키로
-//   잠그고 원문을 버린다 (ECDH P-256 일회용 키 → HKDF → AES-256-GCM, AAD 는 같은 세션 키).
-//   개인키는 계정 키로 봉인돼 있어 내 기기만 연다 — 서버는 잠글 수만 있고 열 수 없다.
+// Inbox format for cloud sessions (remote MCP): s1.<ephemeral public key>.<iv>.<ciphertext+tag>
+//   Claude in the cloud can't hold the account key, so it sends content to the server in plaintext. The server immediately
+//   locks it with the account's inbox public key and discards the original (ECDH P-256 ephemeral key → HKDF → AES-256-GCM, AAD is the same session key).
+//   The private key is sealed with the account key, so only my devices can open it — the server can lock but not open.
 
 export type Sealed = string;
 
@@ -20,13 +20,13 @@ export interface ContentKeys {
   enc: CryptoKey;
   tag: CryptoKey;
   kid: string;
-  /** 마스터 키 자체 — 다른 기기에 감싸서 넘길 때 필요하다 (pairing.ts) */
+  /** The master key itself — needed to wrap and hand it to another device (pairing.ts) */
   master: Uint8Array<ArrayBuffer>;
-  /** 받은편지함 개인키 (ECDH) — 있으면 클라우드 세션(s1.) 내용도 연다 */
+  /** Inbox private key (ECDH) — if present, also opens cloud session (s1.) content */
   inbox?: CryptoKey;
 }
 
-/** 세션·턴·이벤트 내용과 태그를 만드는 쪽. 테스트에서는 평문 그대로 두는 구현을 쓸 수 있다 */
+/** Produces sealed content and tags for sessions, turns and events. Tests may use an implementation that leaves plaintext as is */
 export interface Sealer {
   seal(plaintext: string, aad: string): Promise<Sealed>;
   tag(value: string): Promise<string>;
@@ -60,9 +60,9 @@ export const generateMasterKey = (): Bytes => globalThis.crypto.getRandomValues(
 
 const info = (name: string) => ({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: utf8.encode(`bitl/v1/${name}`) });
 
-/** 마스터 키 → 용도별 키. 만든 키는 추출할 수 없다 (브라우저 IndexedDB 에 그대로 보관 가능) */
+/** Master key → per-purpose keys. The derived keys are non-extractable (can be stored as is in browser IndexedDB) */
 export async function deriveKeys(master: Uint8Array): Promise<ContentKeys> {
-  if (master.length !== MASTER_KEY_BYTES) throw new Error(`키 길이가 ${MASTER_KEY_BYTES}바이트가 아닙니다`);
+  if (master.length !== MASTER_KEY_BYTES) throw new Error(`key length is not ${MASTER_KEY_BYTES} bytes`);
   const base = await subtle().importKey('raw', new Uint8Array(master), 'HKDF', false, ['deriveKey', 'deriveBits']);
   const [enc, tag, kidBits] = await Promise.all([
     subtle().deriveKey(info('enc'), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']),
@@ -92,10 +92,10 @@ export async function seal(keys: ContentKeys, plaintext: string, aad: string): P
   return `${VERSION}.${keys.kid}.${toBase64Url(iv)}.${toBase64Url(new Uint8Array(ct))}`;
 }
 
-/** 이 키로 만든 암호문인지 (복호화하지 않고 식별자만 비교) */
+/** Whether the ciphertext was made with this key (compares the identifier only, without decrypting) */
 export const sealedWith = (keys: Pick<ContentKeys, 'kid'>, sealed: Sealed): boolean => sealed.split('.')[1] === keys.kid;
 
-/** 복호화. 다른 키, 다른 세션(AAD), 변조된 값이면 예외 */
+/** Decrypt. Throws on a different key, a different session (AAD), or a tampered value */
 export async function open(keys: ContentKeys, sealed: Sealed, aad: string): Promise<string> {
   if (sealed.startsWith('s1.')) {
     if (!keys.inbox) throw new Error('no inbox key');
@@ -112,7 +112,7 @@ export async function open(keys: ContentKeys, sealed: Sealed, aad: string): Prom
   return fromUtf8.decode(unpad(new Uint8Array(pt)));
 }
 
-// ── 받은편지함 (클라우드 세션) ──────────────────────────────────
+// ── Inbox (cloud sessions) ──────────────────────────────────
 
 const INBOX_CURVE = { name: 'ECDH', namedCurve: 'P-256' } as const;
 
@@ -127,7 +127,7 @@ async function inboxKey(shared: ArrayBuffer, ephemeralPublic: Uint8Array, usage:
   );
 }
 
-/** 받은편지함 키쌍 만들기. 공개키(raw, base64url)는 서버에, 개인키(pkcs8, base64url)는 계정 키로 봉인해 서버에 맡긴다 */
+/** Create an inbox key pair. The public key (raw, base64url) goes to the server; the private key (pkcs8, base64url) is sealed with the account key and left with the server */
 export async function generateInboxKeyPair(): Promise<{ publicKey: string; privateKeyPkcs8: string }> {
   const kp = (await subtle().generateKey(INBOX_CURVE, true, ['deriveBits'])) as CryptoKeyPair;
   return {
@@ -136,11 +136,11 @@ export async function generateInboxKeyPair(): Promise<{ publicKey: string; priva
   };
 }
 
-/** 개인키를 꺼낼 수 없는 CryptoKey 로 (브라우저는 이것만 IndexedDB·메모리에 둔다) */
+/** Into a CryptoKey whose private key can't be extracted (the browser keeps only this in IndexedDB/memory) */
 export const importInboxPrivateKey = (pkcs8: string): Promise<CryptoKey> =>
   subtle().importKey('pkcs8', fromBase64Url(pkcs8), INBOX_CURVE, false, ['deriveBits']);
 
-/** 서버: 받은 평문을 받은편지함 공개키로 잠근다. 매번 일회용 키를 새로 만든다 */
+/** Server: locks received plaintext with the inbox public key. Creates a fresh ephemeral key every time */
 export async function sealInbox(inboxPublicKey: string, plaintext: string, aad: string): Promise<Sealed> {
   const peer = await subtle().importKey('raw', fromBase64Url(inboxPublicKey), INBOX_CURVE, false, []);
   const eph = (await subtle().generateKey(INBOX_CURVE, true, ['deriveBits'])) as CryptoKeyPair;
@@ -157,13 +157,13 @@ export async function sealInbox(inboxPublicKey: string, plaintext: string, aad: 
 
 const INBOX_WRAP_AAD = 'bitl/inbox-key';
 
-/** 브라우저: 새 받은편지함 키쌍 — 개인키는 계정 키로 봉인해서 (서버에 맡길 것) */
+/** Browser: a new inbox key pair — private key sealed with the account key (to be left with the server) */
 export async function createInboxKey(keys: ContentKeys): Promise<{ publicKey: string; wrappedPrivateKey: Sealed }> {
   const { publicKey, privateKeyPkcs8 } = await generateInboxKeyPair();
   return { publicKey, wrappedPrivateKey: await seal(keys, privateKeyPkcs8, INBOX_WRAP_AAD) };
 }
 
-/** 서버에 맡긴 봉인된 개인키를 연다 (계정 키가 맞아야 열린다) */
+/** Opens the sealed private key left with the server (only opens with the right account key) */
 export async function unwrapInboxKey(keys: ContentKeys, wrappedPrivateKey: Sealed): Promise<CryptoKey> {
   return importInboxPrivateKey(await open(keys, wrappedPrivateKey, INBOX_WRAP_AAD));
 }
@@ -182,7 +182,7 @@ async function openInbox(privateKey: CryptoKey, sealed: Sealed, aad: string): Pr
   return fromUtf8.decode(unpad(new Uint8Array(pt)));
 }
 
-/** 같은 값이면 같은 태그. 서버는 값은 모른 채 같은지만 비교한다 */
+/** Same value, same tag. The server compares equality without knowing the value */
 export async function tag(keys: ContentKeys, value: string): Promise<string> {
   const mac = await subtle().sign('HMAC', keys.tag, utf8.encode(value));
   return toBase64Url(new Uint8Array(mac).subarray(0, TAG_BYTES));

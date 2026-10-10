@@ -319,6 +319,8 @@ export const ko = {
   'card.lastResponse': "마지막 응답",
   'card.turns': "턴 {n}",
   'card.tools': "도구 {n}",
+  'card.locked': "🔒 이 기기의 키로 열 수 없음",
+  'card.untitled': "(제목 없음)",
   'card.subagents': "서브에이전트 {n}",
   'detail.sessionStart': "세션 시작",
   'detail.sessionEnd': "세션 종료",

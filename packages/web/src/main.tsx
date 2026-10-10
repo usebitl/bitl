@@ -8,9 +8,9 @@ import { useContentKeys } from './useSessions';
 
 registerServiceWorker();
 
-/** 로컬 모드 (bitl start): 이 PC 의 보드. 카드 내용은 bitl pair 링크로 받은 키로 이 브라우저가 푼다 */
+/** Local mode (bitl start): this PC's board. This browser decrypts card contents with the key from the bitl pair link */
 function Root() {
-  useLang(); // 언어가 바뀌면 전체를 새 언어로 다시 그린다
+  useLang(); // re-render everything in the new language when it changes
   return <Board keys={useContentKeys()} />;
 }
 

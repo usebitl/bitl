@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from './i18n';
 
 /**
- * 복사 — 앱 전체에서 같은 모양·같은 알림으로 (2026-10-04 통일).
- * 명령·링크가 든 상자 전체를 누르면 복사되고, 오른쪽 복사 아이콘이 2초 동안 초록 체크로 바뀌며 화면 아래에 안내가 뜬다.
+ * Copy — same look and same notice across the whole app (unified 2026-10-04).
+ * Clicking anywhere on a box holding a command or link copies it; the copy icon on the right turns into a green check for 2 seconds and a notice appears at the bottom of the screen.
  */
 
-/** 클립보드에 복사. Clipboard API 가 없거나 막힌 곳(http, 일부 웹뷰)은 예전 방식으로 */
+/** Copy to the clipboard. Falls back to the legacy method where the Clipboard API is missing or blocked (http, some webviews) */
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -26,7 +26,7 @@ export async function copyText(text: string): Promise<boolean> {
 
 export type CopyState = 'idle' | 'ok' | 'fail';
 
-/** 복사하고 결과를 2초 동안 기억한다 */
+/** Copies and remembers the result for 2 seconds */
 export function useCopy(): [state: CopyState, copy: (text: string) => void] {
   const [state, setState] = useState<CopyState>('idle');
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -40,7 +40,7 @@ export function useCopy(): [state: CopyState, copy: (text: string) => void] {
   return [state, copy];
 }
 
-/** 복사 결과 안내 (화면 아래 가운데) */
+/** Copy result notice (bottom center of the screen) */
 export function CopyToast({ state }: { state: CopyState }) {
   if (state === 'idle') return null;
   return (
@@ -55,7 +55,7 @@ export function CopyToast({ state }: { state: CopyState }) {
   );
 }
 
-/** 겹친 네모(복사) ↔ 체크(복사됨) */
+/** Overlapping squares (copy) ↔ check (copied) */
 export function CopyIcon({ done, className = 'size-4' }: { done?: boolean; className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -72,8 +72,8 @@ export function CopyIcon({ done, className = 'size-4' }: { done?: boolean; class
 }
 
 /**
- * 명령·링크 한 줄 + 복사. 상자 전체가 버튼이다 (휴대폰에서 작은 아이콘을 맞추지 않아도 되게).
- * wrap: 긴 링크는 줄바꿈해서 다 보이게 (기본은 한 줄, 넘치면 가로 스크롤)
+ * A one-line command or link + copy. The whole box is the button (so you don't have to hit a tiny icon on a phone).
+ * wrap: wrap long links so they are fully visible (default is one line, scrolling horizontally on overflow)
  */
 export function CopyField({ text, wrap = false, className = '' }: { text: string; wrap?: boolean; className?: string }) {
   const [state, copy] = useCopy();

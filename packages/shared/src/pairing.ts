@@ -1,10 +1,10 @@
-// 기기 연결: 계정 내용 키를 기기끼리 넘긴다. 서버는 감싼(암호화한) 키를 전달만 한다.
+// Device pairing: hands the account content key from device to device. The server only relays the wrapped (encrypted) key.
 //
-// - 기기마다 ECDH P-256 키쌍. 내용 키는 ECDH(내 개인키, 상대 공개키) → HKDF → AES-GCM 으로 감싸 보낸다 (AAD = 연결 id)
-// - 서버가 가짜 공개키를 끼워 넣지 못하게: 사용자가 여는 링크(QR)의 # 뒤 비밀값(서버로 가지 않는다)으로
-//   양쪽이 자기 공개키에 서명(HMAC)하고, 상대 서명을 확인한다. 확인이 안 되면 키를 넘기지 않는다
+// - Each device has an ECDH P-256 key pair. The content key is wrapped via ECDH(my private key, peer public key) → HKDF → AES-GCM (AAD = pairing id)
+// - So the server can't inject a fake public key: with the secret after # in the link (QR) the user opens (never sent to the server),
+//   each side signs its own public key (HMAC) and verifies the peer's signature. If verification fails, the key isn't handed over
 //
-// Node(CLI)·브라우저 공용 (WebCrypto).
+// Shared by Node (CLI) and browser (WebCrypto).
 import { fromBase64Url, MASTER_KEY_BYTES, toBase64Url } from './crypto.js';
 
 type Bytes = Uint8Array<ArrayBuffer>;
@@ -12,7 +12,7 @@ const subtle = () => globalThis.crypto.subtle;
 const utf8 = new TextEncoder();
 const CURVE = { name: 'ECDH', namedCurve: 'P-256' } as const;
 
-/** P-256 공개키(압축하지 않은 65바이트)의 base64url */
+/** base64url of a P-256 public key (uncompressed, 65 bytes) */
 export const PUBLIC_KEY_PATTERN = /^[A-Za-z0-9_-]{87}$/;
 export const WRAPPED_PATTERN = /^w1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$/;
 export const PAIRING_SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -24,7 +24,7 @@ export interface DeviceKeyPair {
   privateKey: CryptoKey;
 }
 
-/** extractable: CLI 는 파일에 저장해야 해서 true, 브라우저는 IndexedDB 에 CryptoKey 그대로 두므로 false */
+/** extractable: true for the CLI since it saves to a file; false for the browser, which keeps the CryptoKey as is in IndexedDB */
 export async function generateDeviceKeyPair(extractable: boolean): Promise<DeviceKeyPair> {
   const kp = (await subtle().generateKey(CURVE, extractable, ['deriveBits'])) as CryptoKeyPair;
   const raw = new Uint8Array(await subtle().exportKey('raw', kp.publicKey));
@@ -41,13 +41,13 @@ export function importPrivateKey(pkcs8: string): Promise<CryptoKey> {
 
 const importPublicKey = (publicKey: string) => subtle().importKey('raw', fromBase64Url(publicKey), CURVE, false, []);
 
-/** 링크 # 뒤에 싣는 1회용 비밀값 */
+/** One-time secret carried after # in the link */
 export const generatePairingSecret = (): string => toBase64Url(globalThis.crypto.getRandomValues(new Uint8Array(32)));
 
 const macKey = (secret: string) => subtle().importKey('raw', fromBase64Url(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 const macInput = (role: PairingRole, publicKey: string) => utf8.encode(`bitl/v1/pair|${role}|${publicKey}`);
 
-/** "이 공개키는 링크를 가진 쪽이 보낸 것" 서명 */
+/** Signature meaning "this public key was sent by the side holding the link" */
 export async function signPublicKey(secret: string, role: PairingRole, publicKey: string): Promise<string> {
   return toBase64Url(new Uint8Array(await subtle().sign('HMAC', await macKey(secret), macInput(role, publicKey))));
 }
@@ -72,7 +72,7 @@ async function wrappingKey(ownPrivate: CryptoKey, peerPublic: string, pairingId:
   );
 }
 
-/** 내용 키(마스터)를 상대 기기용으로 감싼다. 형식: w1.<iv>.<ct> */
+/** Wraps the content (master) key for the peer device. Format: w1.<iv>.<ct> */
 export async function wrapMasterKey(master: Uint8Array, ownPrivate: CryptoKey, peerPublic: string, pairingId: string): Promise<string> {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const key = await wrappingKey(ownPrivate, peerPublic, pairingId, 'encrypt');

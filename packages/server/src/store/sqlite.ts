@@ -8,12 +8,12 @@ import { SqlStore } from './sql-store.js';
 import { type Driver, LOCAL_ACCOUNT, type Query, type Row } from './types.js';
 
 /**
- * 스키마 버전
- *   1: 내용 평문 — 서버는 키가 없어 암호화할 수 없으므로 백업 파일로 옮기고 새로 시작
- *   2: 신호 + 암호문 (Phase 3)
- *   3: 계정별 (account_id), tool_failed 열 — 2 는 그대로 옮긴다 (모두 로컬 계정)
- *   4: 기기·연결·계정 키 테이블 추가 (클라우드 모드용, 더하기만 함)
- *   5: 웹 푸시 구독 테이블 추가 (더하기만 함)
+ * Schema versions
+ *   1: plaintext content — the server has no key to encrypt it, so it's moved to a backup file and started fresh
+ *   2: signal + ciphertext (Phase 3)
+ *   3: per account (account_id), tool_failed column — v2 is migrated as is (all to the local account)
+ *   4: adds device, pairing and account key tables (for cloud mode, additive only)
+ *   5: adds the web push subscription table (additive only)
  */
 const SCHEMA_VERSION = 10; // v10: goals
 
@@ -60,14 +60,14 @@ ${PUSH_SCHEMA}
 ${APPROVAL_SCHEMA}
 ${GOAL_SCHEMA}`;
 
-/** 이 저장소 위에 더할 테이블 (클라우드 기능을 SQLite 로 시험할 때). 더하기만 한다 */
+/** Extra tables on top of this store (for testing cloud features on SQLite). Additive only */
 export interface SchemaExtension {
   schema: string;
-  /** 처음 만든 뒤에 더한 열 */
+  /** Columns added after the initial schema */
   addedColumns?: [table: string, column: string, type: string][];
 }
 
-/** v2 → v3: 계정 열을 붙여 옮긴다 (SQLite 는 기본 키를 바꿀 수 없어 테이블을 새로 만든다) */
+/** v2 → v3: migrate with an account column (SQLite can't change a primary key, so tables are recreated) */
 const MIGRATE_2_TO_3 = `
 ALTER TABLE sessions RENAME TO sessions_v2;
 ALTER TABLE turns RENAME TO turns_v2;
@@ -90,7 +90,7 @@ DROP TABLE events_v2;
 const isRead = (sql: string) => /^\s*(SELECT|WITH)\b/i.test(sql);
 const bind = (params: unknown[]) => params.map((p) => (p === undefined ? null : p)) as SQLInputValue[];
 
-/** node:sqlite 는 동기라 한 번에 하나씩 돈다. 트랜잭션만 차례로 줄 세운다 (중간에 await 가 끼어도 섞이지 않게) */
+/** node:sqlite is synchronous, so calls run one at a time. Only transactions are queued in order (so they don't interleave across an await) */
 class SqliteDriver implements Driver {
   readonly dialect = 'sqlite';
   private chain: Promise<unknown> = Promise.resolve();
@@ -132,7 +132,7 @@ function userVersion(db: DatabaseSync): number {
 
 const hasSessions = (db: DatabaseSync) => Boolean(db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'`).get());
 
-/** 로컬 모드 저장소. path 가 ':memory:' 면 테스트용 메모리 DB */
+/** Local mode store. path ':memory:' gives an in-memory DB for tests */
 export function openSqliteStore(path: string, extension?: SchemaExtension): SqlStore {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   let db = new DatabaseSync(path);
@@ -158,7 +158,7 @@ export function openSqliteStore(path: string, extension?: SchemaExtension): SqlS
   }
   db.exec(SCHEMA);
   if (extension) db.exec(extension.schema);
-  // 처음 만든 뒤에 더한 열 (이미 있는 표에 붙인다)
+  // Columns added after the initial schema (added to existing tables)
   for (const [table, column, type] of extension?.addedColumns ?? []) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);

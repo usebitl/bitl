@@ -1,6 +1,6 @@
 import { type ContentKeys, TEXT_LIMIT } from '@bitl/shared/client';
 import { CopyField } from './Copy';
-import { t } from './i18n';
+import { t, titleLabels } from './i18n';
 import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type TimelineItem, type Turn } from '@bitl/shared/session';
@@ -10,16 +10,16 @@ import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL, WAIT
 import { DeleteConfirm } from './SessionCard';
 
 /**
- * 상세 보기 방식
- * - side: 오른쪽 패널. 보드를 가리지 않아 병렬 세션 흐름을 계속 보면서 확인한다 (다른 카드를 누르면 내용만 바뀜)
- * - wide: 화면 중앙의 넓은 레이어. 지시 기록과 타임라인을 나란히 보며 한 세션을 자세히 본다
- * 모바일(좁은 화면)은 둘 다 전체 화면이다.
+ * Detail view modes
+ * - side: right panel. Doesn't cover the board, so you can keep watching parallel sessions (clicking another card just swaps the content)
+ * - wide: a wide centered layer. For a close look at one session, instructions and timeline side by side
+ * On mobile (narrow screens) both are full screen.
  */
 export type DetailMode = 'side' | 'wide';
 
-/** side 패널 폭 — App 이 보드 오른쪽 여백을 같은 값으로 비운다 */
+/** side panel width — App reserves the same right padding on the board */
 export const SIDE_PANEL_CLASS = 'sm:w-[34rem]';
-export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem]'; // 패널 폭 + 1.5rem 여백
+export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem]'; // panel width + 1.5rem gap
 
 const TIMELINE_ICON: Record<string, string> = {
   prompt: '💬',
@@ -35,7 +35,7 @@ const TIMELINE_ICON: Record<string, string> = {
   progress: '⏳',
 };
 
-/** 화면 문구. 이 파일은 턴·타임라인 항목을 t 로 부르는 곳이 많아 msg 로 쓴다 */
+/** UI strings. Named msg because this file often uses t for turn/timeline items */
 const msg = t;
 
 function timelineText(t: TimelineItem): string {
@@ -57,8 +57,8 @@ function Time({ iso, now }: { iso: string; now: number }) {
 }
 
 /**
- * 에이전트 응답. 길면 12줄로 접고 "전체 보기"로 펼친다.
- * PC 의 어댑터가 1만 자에서 자르므로 (shared/prepare.ts TEXT_LIMIT) 그 한도에 닿은 응답은 잘렸다고 알린다
+ * Agent response. Long ones are collapsed to 12 lines and expanded with "Show all".
+ * The PC adapter truncates at 10,000 characters (shared/prepare.ts TEXT_LIMIT), so responses hitting that limit are marked as truncated
  */
 function ResultText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -127,11 +127,11 @@ interface Props {
   session: Session;
   now: number;
   mode: DetailMode;
-  /** 상세를 보는 동안 다른 세션이 나를 기다리는지 (wide 모드는 보드를 가리므로 알려준다) */
+  /** Whether other sessions are waiting for you while viewing the detail (wide mode covers the board, so we tell you) */
   attentionCount: number;
   onToggleMode: () => void;
   onClose: () => void;
-  /** 원격 승인 요청 (이 카드의 가장 오래된 것) */
+  /** Remote approval request (this card's oldest) */
   approval?: Approval;
   keys?: ContentKeys | null;
 }
@@ -144,7 +144,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const noteDirty = useRef(false);
   const wide = mode === 'wide';
 
-  // 세션에 새 이벤트가 오면 상세도 다시 읽는다
+  // reload the detail when the session gets new events
   useEffect(() => {
     let alive = true;
     fetchDetail(session.key).then((d) => alive && setDetail(d));
@@ -166,7 +166,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const saveNote = async () => {
     if (!noteDirty.current) return;
     noteDirty.current = false;
-    // 키가 없으면 암호화할 수 없어 저장하지 않는다 (평문을 서버에 보내지 않음) — 다음에 다시 시도
+    // without keys we cannot encrypt, so don't save (never send plaintext to the server) — retry next time
     await patchSession(session.key, { note }).catch(() => {
       noteDirty.current = true;
     });
@@ -175,7 +175,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const resume = resumeCommand(session);
   const turns = detail?.turns ?? [];
   const timeline = detail?.timeline ?? [];
-  // 이 세션을 뺀 나머지 중 나를 기다리는 수
+  // number of other sessions waiting for you
   const othersWaiting = attentionCount - (session.status === 'waiting_for_you' || session.status === 'error' ? 1 : 0);
 
   const panel = (
@@ -204,7 +204,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
               {SOURCE_LABEL[session.source]} · {session.project ?? '?'}
               {session.gitBranch && ` @${session.gitBranch}`}
             </div>
-            <h2 className="text-lg font-bold leading-snug">{displayTitle(session)}</h2>
+            <h2 className="text-lg font-bold leading-snug">{displayTitle(session, titleLabels())}</h2>
           </div>
           <button
             type="button"
@@ -259,7 +259,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
         {approval && <ApprovalBox approval={approval} keys={keys} now={now} full />}
       </header>
 
-      {/* 지시 기록 / 타임라인은 탭으로 전환 (넓게 보기도 같다 — 지시와 응답을 넓게 읽게, 타임라인은 필요할 때만) */}
+      {/* Instructions / timeline switch via tabs (same in wide view — read instructions and responses wide, timeline only when needed) */}
       <nav className="border-b border-zinc-200 px-5 dark:border-zinc-800">
         <div className={`flex gap-1 ${wide ? 'mx-auto max-w-[900px]' : ''}`}>
         {(
@@ -286,7 +286,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             key={id}
             className={['h-full overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]', tab === id ? '' : 'hidden'].join(' ')}
           >
-            {/* 넓게 보기: 화면 폭을 쓰되 한 줄이 너무 길어지지 않게 본문은 가운데 약 900px */}
+            {/* Wide view: uses the screen width, but the body is centered at about 900px so lines don't get too long */}
             <div className={wide ? 'mx-auto max-w-[900px]' : undefined}>
             {!detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
@@ -335,6 +335,6 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
       </div>
     );
   }
-  // side: 배경을 막지 않는다 — 보드는 계속 보이고 클릭할 수 있다 (모바일은 전체 화면)
+  // side: doesn't block the background — the board stays visible and clickable (full screen on mobile)
   return <div className="fixed inset-y-0 right-0 z-30 flex w-full sm:w-auto">{panel}</div>;
 }

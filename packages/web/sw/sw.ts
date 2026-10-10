@@ -1,11 +1,11 @@
 /// <reference lib="webworker" />
 /**
- * 서비스 워커 (vite.sw.config.ts 가 dist/sw.js 로 따로 빌드).
+ * Service worker (built separately to dist/sw.js by vite.sw.config.ts).
  *
- * 1. 앱 셸 캐시 — 홈 화면 앱이 네트워크가 느리거나 끊겨도 뜨게.
- *    /assets/* (해시가 붙은 파일) 는 캐시 우선, 페이지는 네트워크 우선. /api 는 절대 캐시하지 않는다.
- * 2. "나를 기다림" 푸시 — 서버는 암호문만 싣는다. 이 기기 IndexedDB 의 키로 풀어서 보여주고,
- *    못 풀면(키 없음) 내용 없이 "작업 1건이 나를 기다리고 있어요".
+ * 1. App shell cache — so the home screen app opens even on a slow or offline network.
+ *    /assets/* (hashed files) are cache-first, pages network-first. /api is never cached.
+ * 2. "Waiting for you" push — the server sends only ciphertext. It is decrypted with the key in this device's IndexedDB;
+ *    if that fails (no key), a contentless "1 task is waiting for you".
  */
 import { type ApprovalDecision, type ContentKeys, open, openApprovalRequest, signDecision } from '@bitl/shared/client';
 
@@ -63,9 +63,9 @@ self.addEventListener('fetch', (e) => {
   }
 });
 
-// ── 푸시 ────────────────────────────────────────────────────────
+// ── Push ───────────────────────────────────────────────────────────
 
-/** 서버 push.ts 의 PushPayload */
+/** PushPayload from the server's push.ts */
 interface PushPayload {
   v: 1;
   key: string;
@@ -75,7 +75,7 @@ interface PushPayload {
   sealed: { title?: string; activity?: string; project?: string; message?: string };
 }
 
-/** web/src/keys.ts 와 같은 저장소 (DB bitl, store keys, 레코드 content) */
+/** Same storage as web/src/keys.ts (DB bitl, store keys, record content) */
 function readKeys(): Promise<ContentKeys | null> {
   return new Promise((resolve) => {
     const req = indexedDB.open('bitl', 1);
@@ -96,8 +96,8 @@ function readKeys(): Promise<ContentKeys | null> {
   });
 }
 
-// ── 알림 문구 (한국어·영어) ────────────────────────────────────
-// 언어는 페이지에서 고른 값(src/i18n/index.ts 가 캐시 'bitl.prefs' 의 /lang 에 적어 둔다), 없으면 이 기기 언어.
+// ── Notification strings (Korean / English) ────────────────────────
+// Language is the one chosen in the page (src/i18n/index.ts writes it to /lang in the 'bitl.prefs' cache), otherwise the device language.
 
 const TEXT = {
   ko: {
@@ -143,25 +143,25 @@ async function phrases(): Promise<Phrases> {
     const saved = res ? await res.text() : '';
     if (saved === 'ko' || saved === 'en') return TEXT[saved];
   } catch {
-    // 캐시를 못 쓰면 기기 언어
+    // device language if the cache is unavailable
   }
   return self.navigator.language.toLowerCase().startsWith('ko') ? TEXT.ko : TEXT.en;
 }
 
-/** 서버 push.ts 의 ApprovalPushPayload — 원격 승인 요청 */
+/** ApprovalPushPayload from the server's push.ts — a remote approval request */
 interface ApprovalPushPayload {
   v: 1;
   kind: 'approval';
   id: string;
   key: string;
   expiresAt: string;
-  /** 봉인된 요청. 크면 빠져 있어 서버에서 받아 온다 */
+  /** Sealed request. Omitted when large, then fetched from the server */
   request?: string;
 }
 
 const approvalTag = (id: string) => `approval:${id}`;
 
-/** 서버 push.ts 의 ApprovalSettledPushPayload — 승인 요청이 끝남 */
+/** ApprovalSettledPushPayload from the server's push.ts — an approval request was settled */
 interface ApprovalSettledPushPayload {
   v: 1;
   kind: 'approval-settled';
@@ -171,8 +171,8 @@ interface ApprovalSettledPushPayload {
 }
 
 /**
- * 승인 요청이 끝남: 허용·거부 버튼이 달린 알림을 조용한 알림으로 바꿨다가 몇 초 뒤 닫는다.
- * 웹 푸시는 받으면 알림을 보여야 해서(안 보이면 iOS 는 구독을 끊는다) 바로 지우지 않고 잠깐 바꿔 보여준다.
+ * Approval request settled: replace the notification with allow/deny buttons by a silent one, then close it after a few seconds.
+ * A web push must show a notification (iOS drops the subscription otherwise), so instead of removing it right away we briefly show the replacement.
  */
 async function showApprovalSettled(p: ApprovalSettledPushPayload) {
   const tag = approvalTag(p.id);
@@ -189,7 +189,7 @@ async function showApprovalSettled(p: ApprovalSettledPushPayload) {
   for (const n of await self.registration.getNotifications({ tag })) n.close();
 }
 
-/** 원격 승인 요청: 무엇을 하려는지 + 허용·거부 버튼 (버튼은 Android 등 지원하는 곳만, 아니면 눌러서 앱에서) */
+/** Remote approval request: what it wants to do + allow/deny buttons (buttons only where supported, e.g. Android; otherwise tap to answer in the app) */
 async function showApproval(p: ApprovalPushPayload) {
   const keys = await readKeys();
   let sealed = p.request;
@@ -198,7 +198,7 @@ async function showApproval(p: ApprovalPushPayload) {
     sealed = res?.ok ? ((await res.json()) as { request?: string }).request : undefined;
   }
   const req = keys && sealed ? await openApprovalRequest(keys, p.id, sealed).catch(() => undefined) : undefined;
-  // 같은 카드의 "나를 기다림" 알림은 이 알림으로 바꾼다 (버튼이 있는 쪽을 남긴다)
+  // this replaces the same card's "waiting for you" notification (keep the one with buttons)
   for (const n of await self.registration.getNotifications({ tag: p.key })) n.close();
   const L = await phrases();
   await self.registration.showNotification(req?.project ? `${req.project} · ${L.approval}` : L.approval, {
@@ -208,12 +208,12 @@ async function showApproval(p: ApprovalPushPayload) {
     tag: approvalTag(p.id),
     data: { key: p.key, approvalId: p.id, readable: Boolean(req) },
     requireInteraction: true,
-    // 내용을 풀 수 있을 때만 바로 허용 버튼 (무엇인지 모르는 요청을 허용하지 않게)
+    // offer the allow button only when the content can be decrypted (never allow an unknown request)
     ...({ actions: req ? [{ action: 'allow', title: L.allow }, { action: 'deny', title: L.deny }] : [{ action: 'deny', title: L.deny }] } as object),
   });
 }
 
-/** 알림의 버튼으로 결정: 이 기기의 키로 서명해 보낸다 */
+/** Decision from a notification button: signed with this device's key and sent */
 async function decideFromNotification(id: string, decision: ApprovalDecision, key?: string) {
   const [keys, L] = await Promise.all([readKeys(), phrases()]);
   const fail = (body: string) =>
@@ -235,7 +235,7 @@ async function show(payload: PushPayload | ApprovalPushPayload | ApprovalSettled
   const p = payload as PushPayload | null;
   const L = await phrases();
   if (p && (await self.registration.getNotifications()).some((n) => (n.data as { key?: string; approvalId?: string } | null)?.approvalId && n.data.key === p.key))
-    return; // 이 카드에 승인 요청 알림이 떠 있으면 그것을 남긴다
+    return; // if this card has an approval request notification showing, keep it
   if (!p || p.v !== 1) {
     await self.registration.showNotification('BITL', { body: L.oneWaiting, icon: '/icon-192.png', tag: 'bitl' });
     return;
@@ -255,13 +255,13 @@ async function show(payload: PushPayload | ApprovalPushPayload | ApprovalSettled
     body: body.length ? body.join('\n') : L.oneWaiting,
     icon: '/icon-192.png',
     badge: '/badge-96.png',
-    // 같은 카드의 알림은 하나로 (새 알림이 이전 것을 바꾼다)
+    // one notification per card (a new one replaces the previous)
     tag: p.key,
     data: { key: p.key },
-    // TS 의 DOM 타입에 아직 없는 옵션 — 같은 tag 라도 다시 울리게
+    // option not yet in TS DOM types — alert again even with the same tag
     ...({ renotify: true } as object),
   });
-  // 홈 화면 아이콘 숫자 (지원하는 곳만)
+  // home screen icon number (where supported)
   await (self.navigator as WorkerNavigator & { setAppBadge?: (n: number) => Promise<void> }).setAppBadge?.(p.attention).catch(() => {});
 }
 
@@ -273,7 +273,7 @@ self.addEventListener('push', (e) => {
   e.waitUntil(show(payload));
 });
 
-// 알림을 누르면 그 카드를 연다 (이미 열린 BITL 창이 있으면 그 창에서)
+// Clicking a notification opens that card (in an already-open BITL window if there is one)
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const data = e.notification.data as { key?: string; approvalId?: string } | null;
@@ -289,7 +289,7 @@ self.addEventListener('notificationclick', (e) => {
       const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
       if (win) {
         await win.focus();
-        // 열린 앱이 메시지를 받아 그 카드의 상세를 연다 (pwa.ts)
+        // the open app receives the message and opens that card's detail (pwa.ts)
         win.postMessage({ type: 'open-session', key });
         return;
       }
