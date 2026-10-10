@@ -23,7 +23,6 @@ Then use Claude Code in any folder and its sessions appear on the board, includi
 | `pnpm bitl install claude [--project <dir>]` | Claude Code hooks. `--project` writes only that folder's `.claude/settings.json` |
 | `pnpm bitl install codex` | Codex hooks (`~/.codex/config.toml`). Trust them once in Codex with `/hooks` |
 | `pnpm bitl install antigravity` | Antigravity hooks (`~/.gemini/config/hooks.json`, CLI and IDE) |
-| `pnpm bitl install claude-desktop` | MCP server for Claude Desktop — the agent reports its own status |
 | `pnpm bitl uninstall <agent>` | Removes only what BITL added |
 | `pnpm bitl status` | Session summary in the terminal |
 | `pnpm bitl pair` | Link that hands the decryption key to a browser (once per browser) |
