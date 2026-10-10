@@ -5,7 +5,7 @@
 <h1 align="center">BITL — Being In The Loop</h1>
 
 <p align="center">
-  <b>A local board for all your AI coding agents — see which ones are waiting for you.</b><br>
+  <b>Stay in the loop with every AI coding agent you run.</b><br>
   Claude Code · Codex · Antigravity
 </p>
 
@@ -14,13 +14,13 @@
   <a href="https://www.npmjs.com/package/@usebitl/cli"><img src="https://img.shields.io/npm/v/@usebitl/cli" alt="npm"></a>
 </p>
 
-<p align="center"><img src="docs/board.png" alt="The BITL board: one agent waiting for approval, two running, one done and ready for review" width="900"></p>
+<p align="center"><img src="docs/board.png" alt="BITL: sessions from Claude Code and Codex sorted into waiting on you, running and needs review, with a &quot;New checkout&quot; goal showing its progress" width="900"></p>
 
-When you run several agents at once, they spend a lot of time stuck: one is waiting on a permission prompt in a terminal you can't see, another finished ten minutes ago and is waiting for your review. BITL puts every session on one board, sorted by what it needs from you.
+When several agents work for you at once, each one lives in its own terminal and it's easy to lose the big picture: which are still working, what you asked each of them to do, what they've finished, and how far along the whole thing is. BITL gives you one live view of every session you've started.
 
-- **Waiting on you**: a permission prompt or a question.
-- **Running**: what it's doing right now (`Bash: pnpm test`, `Edit: src/app.ts`).
-- **Needs review**: the turn is done; the last answer is right on the card.
+- **Every session at a glance**: running (with what it's doing right now, like `Bash: pnpm test`), waiting on you (a permission prompt or a question), or done with the last answer right on the card.
+- **Goals**: group sessions under what you're actually trying to ship ("New checkout"). See how many are waiting, running or done, or show only that goal's cards.
+- **The story of each session**: every prompt you gave, what came back, and a timeline of tools and subagents, so you can catch up on what an agent did while you were away.
 - Sessions that are already running show up too. No wrapper and no change to how you start your agents. BITL listens to their hooks.
 
 This is the **local edition**. It runs on your PC (`127.0.0.1` only), needs no account, and keeps everything in a local SQLite file.
@@ -111,7 +111,12 @@ The local edition is free and open source (AGPL-3.0). usebitl.com is free during
 
 ## 한국어
 
-**여러 AI 코딩 에이전트를 한 화면에서 — 어떤 작업이 나를 기다리는지 보여 줍니다.** Claude Code, Codex, Antigravity 의 세션을 "나를 기다림(권한 요청·질문) / 실행 중 / 검토 필요" 로 나눠 보여 줍니다. 이미 실행 중인 세션도 hook 으로 잡으므로 에이전트를 실행하는 방법은 바뀌지 않습니다.
+**내가 실행한 AI 코딩 에이전트들의 흐름을 놓치지 않게.** Claude Code, Codex, Antigravity 의 모든 세션을 한 화면에서 봅니다.
+
+- 세션마다 지금 하는 일, 나를 기다리는지(권한 요청·질문), 끝났는지와 마지막 답변
+- 목표: 이루려는 일("새 결제 화면") 아래에 세션을 묶어, 몇 개가 실행 중·대기·완료인지 보고 그 목표만 걸러 보기
+- 세션별 기록: 내가 준 지시, 돌아온 답, 도구·서브에이전트 타임라인 — 자리를 비운 사이 무엇을 했는지 따라잡기
+- 이미 실행 중인 세션도 hook 으로 잡으므로 에이전트를 실행하는 방법은 바뀌지 않습니다
 
 이 저장소는 **로컬판**입니다. 내 PC 에서만(`127.0.0.1`) 돌고, 계정이 필요 없으며, 모든 기록을 PC 의 SQLite 파일에 둡니다.
 
