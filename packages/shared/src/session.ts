@@ -41,7 +41,7 @@ export const isEmptySession = (s: Pick<SessionSignals, 'status' | 'turnCount' | 
  */
 export const SESSION_CONTENT_FIELDS = [
   'title', // title based on the first prompt
-  'aiTitle', // ai-title from the Claude Code transcript (shown instead of title if present)
+  'aiTitle', // session title from the Claude Code transcript: the user's /rename, else the auto ai-title (shown instead of title if present)
   'currentActivity', // current activity like "Bash: pnpm test"
   'lastPrompt',
   'lastMessage',
