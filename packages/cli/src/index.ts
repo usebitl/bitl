@@ -59,6 +59,8 @@ const usage = () =>
     '',
     row('bitl remote [on|off]', t('usage.remote')),
     row('', t('usage.remote2')),
+    '',
+    row('bitl --version', t('usage.version')),
   ].join('\n');
 
 const serverUrl = () => process.env.BITL_URL ?? `http://127.0.0.1:${process.env.BITL_PORT ?? 7777}`;
@@ -228,6 +230,12 @@ async function main(argv: string[]) {
     }
     case 'logout':
       return logout();
+    case '--version':
+    case '-v':
+    case 'version':
+      // set at build time for the npm package (npm/build.mjs); running from the repo has no release version
+      console.log(process.env.BITL_CLIENT_VERSION ?? 'dev');
+      return;
     case 'remote':
     case 'away': // former name
       return away(rest[0]);

@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
 import type { AgentEvent } from '../events.js';
 import { carriesContext, type Enrichment } from '../prepare.js';
 
-// Extra info only available on the PC (git branch, project name, Claude Code session title: /rename or ai-title).
+// Extra info only available on the PC (git branch, project name, session title — the user's /rename or the agent's auto title).
 // The server can't see files on the customer's PC, so the adapter attaches it before sending.
 
 const BRANCH_TTL_MS = 60_000;
@@ -49,6 +50,67 @@ export async function titleFromTranscript(path: string): Promise<string | undefi
   }
 }
 
+/**
+ * Codex thread name: the last line for this thread in $CODEX_HOME/session_index.jsonl (default ~/.codex).
+ * Codex appends a line both for its auto name and for /rename (codex-cli 0.162, not a public spec)
+ */
+export async function codexThreadName(threadId: string, codexHome = process.env.CODEX_HOME?.trim() || join(homedir(), '.codex')): Promise<string | undefined> {
+  try {
+    const file = join(codexHome, 'session_index.jsonl');
+    if ((await stat(file)).size > MAX_TRANSCRIPT_BYTES) return undefined;
+    let name: string | undefined;
+    for (const line of (await readFile(file, 'utf8')).split('\n')) {
+      if (!line.includes(threadId)) continue;
+      try {
+        const rec = JSON.parse(line) as { id?: string; thread_name?: string };
+        if (rec.id === threadId && rec.thread_name?.trim()) name = rec.thread_name.trim();
+      } catch {
+        // may be the last line still being written
+      }
+    }
+    return name;
+  } catch {
+    return undefined;
+  }
+}
+
+/** node:sqlite without the "SQLite is an experimental feature" warning — hooks must never write to the agent's screen */
+async function importSqliteQuietly(): Promise<typeof import('node:sqlite')> {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+    if (String(typeof warning === 'string' ? warning : warning.message).startsWith('SQLite is an experimental feature')) return;
+    (emitWarning as (...a: unknown[]) => void).call(process, warning, ...rest);
+  }) as typeof process.emitWarning;
+  try {
+    return await import('node:sqlite');
+  } finally {
+    process.emitWarning = emitWarning;
+  }
+}
+
+/**
+ * Antigravity CLI conversation title: conversation_summaries.title in ~/.gemini/antigravity-cli/conversation_summaries.db.
+ * Holds agy's auto title, replaced by /rename (agy 1.3.2, not a public spec). Needs node:sqlite (Node 22.5+) — otherwise undefined
+ */
+export async function antigravityTitle(
+  conversationId: string,
+  dbPath = join(homedir(), '.gemini', 'antigravity-cli', 'conversation_summaries.db'),
+): Promise<string | undefined> {
+  try {
+    await stat(dbPath);
+    const { DatabaseSync } = await importSqliteQuietly();
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const row = db.prepare('SELECT title FROM conversation_summaries WHERE conversation_id = ?').get(conversationId) as { title?: unknown } | undefined;
+      return typeof row?.title === 'string' && row.title.trim() ? row.title.trim() : undefined;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return undefined; // no DB, no node:sqlite, or the DB is locked/changed
+  }
+}
+
 /** Top-level folder of the git repository containing cwd. undefined if not a git repository */
 export function gitRoot(cwd: string): Promise<string | undefined> {
   const hit = rootCache.get(cwd);
@@ -83,12 +145,22 @@ export async function enrichEvent(e: AgentEvent): Promise<Enrichment> {
       }),
     );
   }
-  if (e.source === 'claude-code' && e.transcriptPath && (e.type === 'prompt' || e.type === 'turn_end')) {
-    tasks.push(
-      titleFromTranscript(e.transcriptPath).then((title) => {
-        if (title) extra.aiTitle = title;
-      }),
-    );
+  // Session title (the user's /rename or the agent's auto title) — read at prompt and turn end only, so tool calls stay light
+  if (e.type === 'prompt' || e.type === 'turn_end') {
+    const title =
+      e.source === 'claude-code' && e.transcriptPath
+        ? titleFromTranscript(e.transcriptPath)
+        : e.source === 'codex'
+          ? codexThreadName(e.sessionId)
+          : e.source === 'antigravity'
+            ? antigravityTitle(e.sessionId)
+            : undefined;
+    if (title)
+      tasks.push(
+        title.then((t) => {
+          if (t) extra.aiTitle = t;
+        }),
+      );
   }
   await Promise.all(tasks.map((t) => t.catch(() => {})));
   return extra;

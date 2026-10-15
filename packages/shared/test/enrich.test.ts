@@ -2,8 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { projectName, titleFromTranscript } from '../src/node/enrich.js';
+import { antigravityTitle, codexThreadName, projectName, titleFromTranscript } from '../src/node/enrich.js';
 
 describe('projectName', () => {
   it('repo top-level folder name, even from a subfolder of a git repo', async () => {
@@ -47,5 +48,42 @@ describe('titleFromTranscript', () => {
   it('undefined when there is no title or the file is missing', async () => {
     expect(await titleFromTranscript(transcript({ type: 'user' }))).toBeUndefined();
     expect(await titleFromTranscript(join(tmpdir(), 'no-such-transcript.jsonl'))).toBeUndefined();
+  });
+});
+
+describe('codexThreadName', () => {
+  it('the last thread_name line for the thread (auto name, then /rename)', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'codex-home-'));
+    const lines = [
+      { id: 'thread-a', thread_name: 'auto name', updated_at: '2026-10-15T13:00:00Z' },
+      { id: 'thread-b', thread_name: 'other thread', updated_at: '2026-10-15T13:01:00Z' },
+      { id: 'thread-a', thread_name: 'YO MAN', updated_at: '2026-10-15T13:02:00Z' },
+    ];
+    writeFileSync(join(home, 'session_index.jsonl'), lines.map((l) => JSON.stringify(l) + '\n').join(''), 'utf8');
+    expect(await codexThreadName('thread-a', home)).toBe('YO MAN');
+    expect(await codexThreadName('thread-b', home)).toBe('other thread');
+    expect(await codexThreadName('thread-c', home)).toBeUndefined();
+  });
+
+  it('undefined without a session index', async () => {
+    expect(await codexThreadName('thread-a', mkdtempSync(join(tmpdir(), 'codex-empty-')))).toBeUndefined();
+  });
+});
+
+describe('antigravityTitle', () => {
+  it('the title in conversation_summaries (auto title or /rename)', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'agy-')), 'conversation_summaries.db');
+    const db = new DatabaseSync(file);
+    db.exec("CREATE TABLE conversation_summaries (conversation_id text, title text NOT NULL DEFAULT '', PRIMARY KEY (conversation_id))");
+    db.prepare('INSERT INTO conversation_summaries VALUES (?, ?)').run('conv-1', 'HELLO MAN');
+    db.prepare('INSERT INTO conversation_summaries VALUES (?, ?)').run('conv-2', '');
+    db.close();
+    expect(await antigravityTitle('conv-1', file)).toBe('HELLO MAN');
+    expect(await antigravityTitle('conv-2', file)).toBeUndefined();
+    expect(await antigravityTitle('conv-3', file)).toBeUndefined();
+  });
+
+  it('undefined without the DB', async () => {
+    expect(await antigravityTitle('conv-1', join(tmpdir(), 'no-such-agy.db'))).toBeUndefined();
   });
 });
