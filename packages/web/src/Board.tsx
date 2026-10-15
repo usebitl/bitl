@@ -1,4 +1,4 @@
-import { type BoardColumn, columnOf, type ContentKeys, type Session } from '@bitl/shared/client';
+import { type BoardColumn, columnOf, type ContentKeys, isEmptySession, type Session } from '@bitl/shared/client';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
@@ -166,10 +166,11 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 
   const byColumn = useMemo(() => {
     const map: Record<BoardColumn, Session[]> = { attention: [], running: [], review: [], rest: [] };
-    // When filtered by a goal, only its cards. Ended cards go in the "Ended" section below, not the columns
+    // When filtered by a goal, only its cards. Ended cards go in the "Ended" section below, not the columns.
+    // Sessions that never got a prompt stay off the board (still reachable by link)
     const members = activeGoal ? new Set(activeGoal.members) : null;
     for (const s of sessions) {
-      if (s.archived || s.status === 'ended' || (members && !members.has(s.key))) continue;
+      if (s.archived || s.status === 'ended' || isEmptySession(s) || (members && !members.has(s.key))) continue;
       map[columnOf(s.status)].push(s);
     }
     for (const col of COLUMNS) map[col.id].sort(sortFor(col.id));
@@ -178,7 +179,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
   const ended = useMemo(() => {
     const members = activeGoal ? new Set(activeGoal.members) : null;
     return sessions
-      .filter((s) => !s.archived && s.status === 'ended' && (!members || members.has(s.key)))
+      .filter((s) => !s.archived && s.status === 'ended' && !isEmptySession(s) && (!members || members.has(s.key)))
       .sort((a, b) => (b.endedAt ?? b.statusAt).localeCompare(a.endedAt ?? a.statusAt));
   }, [sessions, activeGoal]);
   // Even while filtered by a goal, the "waiting for you" count (title, badge, notifications) covers everything

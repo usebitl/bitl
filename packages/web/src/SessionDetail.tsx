@@ -84,7 +84,11 @@ function ResultText({ text }: { text: string }) {
   );
 }
 
-function TurnList({ turns, now }: { turns: Turn[]; now: number }) {
+/**
+ * activity: what the session is doing right now (same as the card). Shown under the newest turn (turns are newest first)
+ * while it has no response yet, so the panel isn't blank between the prompt and the answer
+ */
+function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activity?: string }) {
   if (turns.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noTurns')}</p>;
   return (
     <ol className="space-y-4">
@@ -99,6 +103,11 @@ function TurnList({ turns, now }: { turns: Turn[]; now: number }) {
           </div>
           <p className="whitespace-pre-wrap break-words text-sm font-medium">{promptText(t.prompt) ?? msg('detail.noPrompt')}</p>
           {t.result && <ResultText text={t.result} />}
+          {i === 0 && !t.result && activity && (
+            <p className="mt-2 break-all border-l-2 border-emerald-300 pl-3 font-mono text-xs text-zinc-600 dark:border-emerald-500/40 dark:text-zinc-400">
+              {activity}
+            </p>
+          )}
         </li>
       ))}
     </ol>
@@ -174,6 +183,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
 
   const resume = resumeCommand(session);
   const turns = detail?.turns ?? [];
+  // same rule as the card: what it's doing now while running or waiting
+  const activity = session.status === 'running' || session.status === 'waiting_for_you' ? session.currentActivity : undefined;
   const timeline = detail?.timeline ?? [];
   // number of other sessions waiting for you
   const othersWaiting = attentionCount - (session.status === 'waiting_for_you' || session.status === 'error' ? 1 : 0);
@@ -291,7 +302,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             {!detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
             ) : id === 'turns' ? (
-              <TurnList turns={turns} now={now} />
+              <TurnList turns={turns} now={now} activity={activity} />
             ) : (
               <Timeline items={timeline} now={now} />
             )}

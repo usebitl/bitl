@@ -56,6 +56,18 @@ function watchAgyPermission(payload) {
   }
 }
 
+/**
+ * Claude Code agent view (`claude agents`): the daemon keeps pre-warmed sessions parked as spares (CLAUDE_BG_SOURCE=spare).
+ * A parked spare fires SessionStart but gets no prompt until a task is dispatched to it, and is retired after an hour idle
+ * without a SessionEnd reaching us — so its start would sit on the board as an empty card. Drop only the start: if a task
+ * is dispatched later, its first prompt creates the card.
+ */
+const isParkedSpareStart = (source, payload) =>
+  source === 'claude-code' &&
+  payload?.hook_event_name === 'SessionStart' &&
+  process.env.CLAUDE_CODE_SESSION_KIND === 'bg' &&
+  process.env.CLAUDE_BG_SOURCE === 'spare';
+
 async function main() {
   const receivedAt = new Date().toISOString(); // when the hook ran (not when it reached the server)
   const source = argValue('--source') ?? 'claude-code';
@@ -72,6 +84,7 @@ async function main() {
   const event = argValue('--event');
   if (event && payload && typeof payload === 'object' && payload.hook_event_name === undefined) payload.hook_event_name = event;
   if (source === 'antigravity' && event === 'PreToolUse') watchAgyPermission(payload);
+  if (isParkedSpareStart(source, payload)) return;
   await sendRecord({ source, receivedAt, payload });
 }
 

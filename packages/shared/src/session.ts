@@ -29,6 +29,13 @@ export const columnOf = (status: SessionStatus): BoardColumn => {
 };
 
 /**
+ * A session that started (or started and ended) without a single prompt or tool call — e.g. an old session reopened
+ * in the Claude Code agent view, or a terminal opened and closed. Kept out of the board columns until it does something.
+ */
+export const isEmptySession = (s: Pick<SessionSignals, 'status' | 'turnCount' | 'toolCount'>): boolean =>
+  s.turnCount === 0 && s.toolCount === 0 && (s.status === 'idle' || s.status === 'ended');
+
+/**
  * A card's display content. The server holds it only as ciphertext (Sealed); the browser/CLI decrypt it with the key.
  * The server's state machine never reads these values; it only moves the ciphertext carried by events into the right slot.
  */
