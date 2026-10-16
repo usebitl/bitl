@@ -188,7 +188,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
       .sort((a, b) => (b.endedAt ?? b.statusAt).localeCompare(a.endedAt ?? a.statusAt));
   }, [sessions, activeGoal]);
   // Even while filtered by a goal, the "waiting for you" count (title, badge, notifications) covers everything
-  const attentionAll = useMemo(() => sessions.filter((s) => !s.archived && columnOf(s.status) === 'attention').length, [sessions]);
+  const attentionAll = useMemo(() => sessions.filter((s) => !s.archived && !isEmptySession(s) && columnOf(s.status) === 'attention').length, [sessions]);
   // Clear the filter when the selected goal is finished or deleted
   useEffect(() => {
     if (goalId && !activeGoal) setGoalId(null);

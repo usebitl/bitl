@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { StoredSession } from '@bitl/shared';
+import { isEmptySession, type StoredSession } from '@bitl/shared';
 import webpush from 'web-push';
 import type { Approval, ApprovalStore, PushStore, PushSubscriptionRow, SessionStore } from './store/index.js';
 
@@ -136,14 +136,15 @@ export function startPushNotifier(opts: {
 
   const notify = async (accountId: string, s: StoredSession) => {
     if (!(await push.list(accountId)).length) return;
-    const attention = (await store.listSessions(accountId)).filter((x) => ALERT.has(x.status)).length;
+    const attention = (await store.listSessions(accountId)).filter((x) => ALERT.has(x.status) && !isEmptySession(x)).length;
     await sendAll(accountId, buildPayload(s, attention), topicOf(s.key));
   };
 
   const off = store.subscribe((change) => {
     if (change.type !== 'session') return;
     const s = change.session;
-    if (!ALERT.has(s.status) || change.prevStatus === s.status) return;
+    // Empty sessions are not on the board (e.g. one relaying other sessions' notifications) — those sessions notify for themselves
+    if (!ALERT.has(s.status) || change.prevStatus === s.status || isEmptySession(s)) return;
     const id = `${change.accountId}\n${s.key}`;
     const t = Date.now();
     if (t - (lastSent.get(id) ?? 0) < cooldownMs) return;

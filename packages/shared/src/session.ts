@@ -31,9 +31,10 @@ export const columnOf = (status: SessionStatus): BoardColumn => {
 /**
  * A session that started (or started and ended) without a single prompt or tool call — e.g. an old session reopened
  * in the Claude Code agent view, or a terminal opened and closed. Kept out of the board columns until it does something.
+ * Whatever its status: a session that only relays notifications about other sessions ("X needs your input", "X finished")
+ * turns waiting without ever getting a prompt, and would otherwise sit in "waiting for you" as an untitled card.
  */
-export const isEmptySession = (s: Pick<SessionSignals, 'status' | 'turnCount' | 'toolCount'>): boolean =>
-  s.turnCount === 0 && s.toolCount === 0 && (s.status === 'idle' || s.status === 'ended');
+export const isEmptySession = (s: Pick<SessionSignals, 'turnCount' | 'toolCount'>): boolean => s.turnCount === 0 && s.toolCount === 0;
 
 /**
  * A card's display content. The server holds it only as ciphertext (Sealed); the browser/CLI decrypt it with the key.

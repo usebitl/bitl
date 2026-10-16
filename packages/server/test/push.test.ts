@@ -71,6 +71,16 @@ describe('waiting-for-you notifications', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('skips a session that never got a prompt (relaying notifications about other sessions) and leaves it out of the count', async () => {
+    await push.subscribe('u1', sub(1));
+    await hook('u1', 'relay', 'Notification', { notification_type: 'agent_needs_input', message: 'other-task needs your input' });
+    await notifier.idle();
+    expect(sent).toHaveLength(0);
+    await ask('u1', 's1');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.payload).toMatchObject({ key: 'claude-code:s1', attention: 1 });
+  });
+
   it('never goes to devices of another account', async () => {
     await push.subscribe('u1', sub(1));
     await push.subscribe('u2', sub(2));
