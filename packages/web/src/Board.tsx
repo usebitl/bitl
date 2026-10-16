@@ -21,12 +21,17 @@ const COLUMNS: { id: BoardColumn; dot: string }[] = [
   { id: 'rest', dot: 'bg-zinc-400' },
 ];
 
-/** Pinned cards first. Then tasks waiting for you, longest-waiting first; the rest by most recent activity */
+/**
+ * Pinned cards first. Then tasks waiting for you, longest-waiting first; running tasks, most recently started first
+ * (statusAt does not move while running, so cards keep their place as events arrive); the rest by most recent activity
+ */
 function sortFor(col: BoardColumn) {
   const byTime =
     col === 'attention'
       ? (a: Session, b: Session) => a.statusAt.localeCompare(b.statusAt)
-      : (a: Session, b: Session) => b.lastEventAt.localeCompare(a.lastEventAt);
+      : col === 'running'
+        ? (a: Session, b: Session) => b.statusAt.localeCompare(a.statusAt) || a.key.localeCompare(b.key)
+        : (a: Session, b: Session) => b.lastEventAt.localeCompare(a.lastEventAt);
   return (a: Session, b: Session) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || byTime(a, b);
 }
 
