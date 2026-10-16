@@ -30,8 +30,8 @@ This is the **local edition**. It runs on your PC (`127.0.0.1` only), needs no a
 Requires Node.js 22.5 or later.
 
 ```sh
-npx @usebitl/cli@latest start            # starts the board; open the "Connect a browser" link it prints
-npx @usebitl/cli@latest install claude   # in another terminal: add Claude Code hooks (a backup is made)
+npx @usebitl/cli start            # starts the board; open the "Connect a browser" link it prints
+npx @usebitl/cli install claude   # in another terminal: add Claude Code hooks (a backup is made)
 ```
 
 Now use Claude Code as usual, in any folder. Its sessions appear on the board.
@@ -121,8 +121,8 @@ The local edition is free and open source (AGPL-3.0). usebitl.com is free during
 이 저장소는 **로컬판**입니다. 내 PC 에서만(`127.0.0.1`) 돌고, 계정이 필요 없으며, 모든 기록을 PC 의 SQLite 파일에 둡니다.
 
 ```sh
-npx @usebitl/cli@latest start            # 보드 시작 → 출력되는 "브라우저 연결" 링크를 연다 (Node.js 22.5 이상)
-npx @usebitl/cli@latest install claude   # 다른 터미널에서: Claude Code hook 등록 (백업 생성)
+npx @usebitl/cli start            # 보드 시작 → 출력되는 "브라우저 연결" 링크를 연다 (Node.js 22.5 이상)
+npx @usebitl/cli install claude   # 다른 터미널에서: Claude Code hook 등록 (백업 생성)
 ```
 
 - 새 버전이 나오면 보드와 `bitl` 명령에 한 줄로 알립니다. 하루 한 번 npm 레지스트리에 최신 버전만 묻고, 다른 것은 보내지 않습니다 (`BITL_NO_UPDATE_CHECK=1` 로 끄기).
