@@ -71,6 +71,11 @@ export interface SessionSignals {
   lastEventAt: string;
   endedAt?: string;
   archived: boolean;
+  /**
+   * Swept off the board by "Clear board". Unlike archived, the card comes back (with its history) as soon as the agent
+   * works or needs the user again (server state.ts). A cleared session that just ends stays off the board
+   */
+  cleared?: boolean;
   /** Pinned to the top of the column */
   pinned?: boolean;
 }

@@ -8,11 +8,12 @@ import { SessionCard } from './SessionCard';
 import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
-import { GlobeIcon } from './Icons';
+import { BroomIcon, GlobeIcon } from './Icons';
 import { EndedSection } from './EndedSection';
 import { GoalDialog, GoalFilter, GoalsBar, goalSessions, PlusIcon } from './GoalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
+import { ClearDialog } from './ClearDialog';
 
 const COLUMNS: { id: BoardColumn; dot: string }[] = [
   { id: 'attention', dot: 'bg-red-500' },
@@ -20,6 +21,11 @@ const COLUMNS: { id: BoardColumn; dot: string }[] = [
   { id: 'review', dot: 'bg-amber-400' },
   { id: 'rest', dot: 'bg-zinc-400' },
 ];
+
+/**
+ * Not on the board: archived, swept off by "Clear" (until the agent acts again), or never got a prompt (still reachable by link)
+ */
+const offBoard = (s: Session) => s.archived || Boolean(s.cleared) || isEmptySession(s);
 
 /**
  * Pinned cards first. Then tasks waiting for you, longest-waiting first; running tasks, most recently started first
@@ -152,6 +158,14 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
   const [goalDialog, setGoalDialog] = useState<{ goal?: Goal; preselect?: string[] } | null>(null);
+  // "Clear" dialog, then a short toast with the result
+  const [clearOpen, setClearOpen] = useState(false);
+  const [cleared, setCleared] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (cleared === null) return;
+    const timer = setTimeout(() => setCleared(null), 3000);
+    return () => clearTimeout(timer);
+  }, [cleared]);
   const activeGoal = goalId ? goals.find((g) => g.id === goalId) : undefined;
   // Remote approval: the longest-waiting request per card
   const approvalFor = useMemo(() => {
@@ -159,9 +173,9 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
     for (const a of [...approvals].sort((x, y) => x.createdAt.localeCompare(y.createdAt))) if (!map.has(a.sessionKey)) map.set(a.sessionKey, a);
     return map;
   }, [approvals]);
-  // Requests with no card on the board (card not arrived yet, or hidden as archived/ended) — shown separately on top so they are not missed
+  // Requests with no card on the board (card not arrived yet, or hidden as archived/cleared/ended) — shown separately on top so they are not missed
   const orphanApprovals = useMemo(() => {
-    const shown = new Set(sessions.filter((s) => !s.archived && s.status !== 'ended').map((s) => s.key));
+    const shown = new Set(sessions.filter((s) => !offBoard(s) && s.status !== 'ended').map((s) => s.key));
     return [...approvalFor.values()].filter((a) => !shown.has(a.sessionKey));
   }, [approvalFor, sessions]);
   const now = useNow();
@@ -175,7 +189,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
     // Sessions that never got a prompt stay off the board (still reachable by link)
     const members = activeGoal ? new Set(activeGoal.members) : null;
     for (const s of sessions) {
-      if (s.archived || s.status === 'ended' || isEmptySession(s) || (members && !members.has(s.key))) continue;
+      if (offBoard(s) || s.status === 'ended' || (members && !members.has(s.key))) continue;
       map[columnOf(s.status)].push(s);
     }
     for (const col of COLUMNS) map[col.id].sort(sortFor(col.id));
@@ -184,11 +198,11 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
   const ended = useMemo(() => {
     const members = activeGoal ? new Set(activeGoal.members) : null;
     return sessions
-      .filter((s) => !s.archived && s.status === 'ended' && !isEmptySession(s) && (!members || members.has(s.key)))
+      .filter((s) => !offBoard(s) && s.status === 'ended' && (!members || members.has(s.key)))
       .sort((a, b) => (b.endedAt ?? b.statusAt).localeCompare(a.endedAt ?? a.statusAt));
   }, [sessions, activeGoal]);
   // Even while filtered by a goal, the "waiting for you" count (title, badge, notifications) covers everything
-  const attentionAll = useMemo(() => sessions.filter((s) => !s.archived && !isEmptySession(s) && columnOf(s.status) === 'attention').length, [sessions]);
+  const attentionAll = useMemo(() => sessions.filter((s) => !offBoard(s) && columnOf(s.status) === 'attention').length, [sessions]);
   // Clear the filter when the selected goal is finished or deleted
   useEffect(() => {
     if (goalId && !activeGoal) setGoalId(null);
@@ -242,6 +256,16 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           >
             <PlusIcon />
             {t('goal.add')}
+          </button>
+          <button
+            type="button"
+            disabled={!sessions.some((s) => !offBoard(s)) && goals.length === 0}
+            title={t('clear.buttonLong')}
+            aria-label={t('clear.buttonLong')}
+            onClick={() => setClearOpen(true)}
+            className="flex size-8 items-center justify-center rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <BroomIcon />
           </button>
           <AppMenu {...menu} />
         </div>
@@ -317,6 +341,27 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           onClose={() => setGoalDialog(null)}
           onDeleted={() => setGoalId(null)}
         />
+      )}
+
+      {clearOpen && (
+        <ClearDialog
+          hasGoals={goals.length > 0}
+          onClose={() => setClearOpen(false)}
+          onDone={(ok) => {
+            setCleared(ok);
+            if (ok) setGoalId(null);
+          }}
+        />
+      )}
+      {cleared !== null && (
+        <div
+          role="status"
+          className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg ${
+            cleared ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-red-600 text-white'
+          }`}
+        >
+          {cleared ? `✓ ${t('clear.done')}` : t('clear.failed')}
+        </div>
       )}
 
       {overlays}

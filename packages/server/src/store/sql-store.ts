@@ -226,6 +226,20 @@ export class SqlStore implements SessionStore {
     return n;
   }
 
+  async clearBoard(accountId: string): Promise<{ deleted: number; cleared: number }> {
+    const deleted = await this.deleteEnded(accountId);
+    const { rows } = await this.db.query(`SELECT key FROM sessions WHERE account_id = ? AND status != 'ended' AND archived = 0`, [accountId]);
+    let cleared = 0;
+    for (const r of rows) {
+      await this.update(accountId, r.key as string, (cur) => {
+        if (cur.cleared || cur.archived) return null;
+        cleared++;
+        return { ...cur, cleared: true };
+      });
+    }
+    return { deleted, cleared };
+  }
+
   async sweepStale(now = new Date()): Promise<number> {
     const { rows } = await this.db.query(`SELECT account_id, key FROM sessions WHERE status = 'running'`);
     let n = 0;

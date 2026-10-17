@@ -45,6 +45,15 @@ export const CardIcon = (p: P) => (
   </Icon>
 );
 
+/** Broom — "Clear" (sweep every card off for a fresh start) */
+export const BroomIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M21 3l-7.5 7.5M10.5 9.5l4 4" />
+    <path d="M10.5 9.5C7 10 4.5 12 3 14.5L9.5 21c2.5-1.5 4.5-4 5-7.5" />
+    <path d="M6.5 13.5l-1 2.5M9 15.5l-2 3.5" />
+  </Icon>
+);
+
 export const GlobeIcon = (p: P) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="9" />

@@ -77,6 +77,12 @@ export async function deleteEnded(keys?: string[]): Promise<number> {
   return ((await res.json()) as { deleted: number }).deleted;
 }
 
+/** "Clear": deletes ended cards, sweeps the rest off until their agent acts again; with goals, deletes every goal too */
+export async function clearBoard(opts: { goals: boolean }): Promise<void> {
+  const res = await fetch('/api/board/clear', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(opts) });
+  if (!res.ok) throw new Error(`clear ${res.status}`);
+}
+
 /** Deletes a card along with its history (turns, timeline) */
 export async function deleteSession(key: string): Promise<void> {
   await fetch(path(key), { method: 'DELETE' });

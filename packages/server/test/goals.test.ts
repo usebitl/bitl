@@ -84,6 +84,16 @@ describe.each(DATABASES)('goals — %s', (_, open) => {
     expect(seen).toEqual(['goal:1', 'goal:2', 'removed:goal_aaaaaaaa']);
   });
 
+  it('clearing the board deletes goals only when asked, and only this account’s', async () => {
+    for (const [account, id] of [['u1', 'goal_aaaaaaaa'], ['u2', 'goal_bbbbbbbb']])
+      await call(account!, 'POST', '/api/goals', { id, data: await sealGoal(id!, 't', []) });
+    expect(await (await call('u1', 'POST', '/api/board/clear', {})).json()).toEqual({ deleted: 0, cleared: 0, goals: 0 });
+    expect(await goals.list('u1')).toHaveLength(1);
+    expect(await (await call('u1', 'POST', '/api/board/clear', { goals: true })).json()).toEqual({ deleted: 0, cleared: 0, goals: 1 });
+    expect(await goals.list('u1')).toHaveLength(0);
+    expect(await goals.list('u2')).toHaveLength(1);
+  });
+
   it('read-only accounts get 402 on create/edit, delete still works', async () => {
     await call('u1', 'POST', '/api/goals', { id: 'goal_aaaaaaaa', data: await sealGoal('goal_aaaaaaaa', 't', []) });
     writable = false;

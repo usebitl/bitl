@@ -51,6 +51,28 @@ describe.each(backends)('store contract — %s', (_name, open) => {
     ]);
   });
 
+  it('clearBoard: deletes ended cards, marks the rest cleared (archived and other accounts untouched)', async () => {
+    await store.ingest('a', await hook('live', 'UserPromptSubmit', { prompt: 'x' }, 1));
+    await store.ingest('a', await hook('kept', 'SessionStart', {}, 2));
+    await store.editSession('a', 'claude-code:kept', { archived: true });
+    await store.ingest('a', await hook('gone', 'SessionStart', {}, 3));
+    await store.ingest('a', await hook('gone', 'SessionEnd', {}, 4));
+    await store.ingest('b', await hook('other', 'UserPromptSubmit', { prompt: 'x' }, 5));
+
+    expect(await store.clearBoard('a')).toEqual({ deleted: 1, cleared: 1 });
+    expect(await store.getSession('a', 'claude-code:gone')).toBeUndefined();
+    expect((await store.getSession('a', 'claude-code:live'))?.cleared).toBe(true);
+    expect((await store.getSession('a', 'claude-code:kept'))?.cleared).toBeUndefined();
+    expect((await store.getSession('b', 'claude-code:other'))?.cleared).toBeUndefined();
+    // Again: nothing left to do
+    expect(await store.clearBoard('a')).toEqual({ deleted: 0, cleared: 0 });
+    // The agent works again → back on the board, history intact
+    await store.ingest('a', await hook('live', 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'ls' } }, 6));
+    const back = await store.getSession('a', 'claude-code:live');
+    expect(back?.cleared).toBeUndefined();
+    expect(await store.listTurns('a', 'claude-code:live')).toHaveLength(1);
+  });
+
   it('edit, acknowledge, delete', async () => {
     await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: 'x' }, 1));
     await store.ingest('a', await hook('s1', 'Stop', {}, 2));

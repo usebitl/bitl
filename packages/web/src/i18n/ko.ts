@@ -258,6 +258,18 @@ export const ko = {
   'ended.showAll': '{n}개 모두 보기',
   'ended.showRecent': '최근 것만 보기',
 
+  // 비우기 (머리의 버튼 → 확인 창)
+  'clear.buttonLong': '카드를 모두 치우고 새로 시작',
+  'clear.title': '카드 비우기',
+  'clear.body': '모든 카드를 치우고 새로 시작합니다.',
+  'clear.ended': '종료된 작업은 전부 삭제됩니다.',
+  'clear.active': '진행 중인 작업은 에이전트가 다시 움직이면 돌아옵니다.',
+  'clear.goals': '목표도 함께 삭제',
+  'clear.cancel': '취소',
+  'clear.yes': '비우기',
+  'clear.done': '카드를 비웠습니다',
+  'clear.failed': '비우지 못했습니다. 다시 시도해 주세요.',
+
   // 휴대폰: 홈 화면 추가·알림 켜기 안내, 기기 화면
   'install.title': '홈 화면에 BITL 추가',
   'install.why': '앱처럼 바로 열고, 나를 기다리는 작업을 알림으로 받으세요.',

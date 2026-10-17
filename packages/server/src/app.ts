@@ -158,6 +158,17 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
     return c.json({ deleted: await store.deleteEnded(c.var.accountId, keys) });
   });
 
+  // "Clear board" {goals?}: deletes ended cards, sweeps the rest off until their agent acts again, and with goals deletes every goal too
+  app.post('/api/board/clear', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { goals?: unknown };
+    const result = await store.clearBoard(c.var.accountId);
+    let goalsDeleted = 0;
+    if (body?.goals === true && goals) {
+      for (const g of await goals.list(c.var.accountId, true)) if (await goals.delete(c.var.accountId, g.id)) goalsDeleted++;
+    }
+    return c.json({ ...result, goals: goalsDeleted });
+  });
+
   app.post('/api/sessions/:key/ack', async (c) => found(c, await store.acknowledge(c.var.accountId, c.req.param('key'))));
   app.post('/api/sessions/:key/archive', async (c) =>
     found(c, await store.editSession(c.var.accountId, c.req.param('key'), { archived: true })),

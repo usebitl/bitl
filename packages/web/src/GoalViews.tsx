@@ -6,7 +6,7 @@ import { rich, t, titleLabels } from './i18n';
 
 /**
  * Goal UI pieces: the goal bar (GoalsBar), the filtering notice (GoalFilter), the create/edit dialog (GoalDialog), and the card's goal menu (CardGoalMenu).
- * A goal's counts and bar reflect the current state of its linked cards (deleted or archived cards are not counted).
+ * A goal's counts and bar reflect the current state of its linked cards (deleted, archived or cleared cards are not counted).
  */
 
 /** + icon — the '+' character sits at different heights per font and misaligns vertically with adjacent text */
@@ -24,7 +24,7 @@ const BAR: Record<BoardColumn, string> = { attention: 'bg-red-500', running: 'bg
 /** The goal's linked cards that are on the board */
 export function goalSessions(goal: Goal, sessions: Session[]): Session[] {
   const keys = new Set(goal.members);
-  return sessions.filter((s) => keys.has(s.key) && !s.archived);
+  return sessions.filter((s) => keys.has(s.key) && !s.archived && !s.cleared);
 }
 
 function countBy(list: Session[]): Record<BoardColumn, number> {
@@ -166,11 +166,11 @@ export function GoalDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Unarchived cards, most recent activity first. Currently linked cards are shown even if ended
+  // Cards on the board (not archived or cleared), most recent activity first. Currently linked cards are shown even if ended
   const candidates = useMemo(
     () =>
       sessions
-        .filter((s) => !s.archived && (s.status !== 'ended' || picked.has(s.key)))
+        .filter((s) => !s.archived && ((!s.cleared && s.status !== 'ended') || picked.has(s.key)))
         .sort((a, b) => b.lastEventAt.localeCompare(a.lastEventAt)),
     // depending on picked would reshuffle the list on every check — use the state when first opened
     // eslint-disable-next-line react-hooks/exhaustive-deps

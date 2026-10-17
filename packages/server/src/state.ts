@@ -14,6 +14,9 @@ export const STALE_AFTER_MS = 10 * 60 * 1000;
  */
 export const PERMISSION_RACE_MS = 2000;
 
+/** Events that do not bring a cleared card back to the board */
+const QUIET_EVENTS = new Set<Signal['type']>(['session_start', 'session_end', 'notice']);
+
 function newSession(e: Signal): StoredSession {
   return {
     key: sessionKey(e.source, e.sessionId),
@@ -68,6 +71,9 @@ export function applyEvent(
   };
 
   if (e.at > s.lastEventAt) s.lastEventAt = e.at;
+  // A cleared card returns to the board when the agent works or needs the user again — not on a session start/end,
+  // an informational notice, the idle reminder that follows a finished turn, or an event that arrived out of order (late)
+  if (s.cleared && !late && !QUIET_EVENTS.has(e.type) && e.waitingReason !== 'idle') delete s.cleared;
   // The working directory and extra info come from the adapter on the PC (project name from the git repo, branch, ai-title)
   for (const field of ['cwd', 'project', 'gitBranch', 'aiTitle', 'model'] as const) if (c[field]) put(field, c[field]);
 

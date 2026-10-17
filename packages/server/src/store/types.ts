@@ -38,6 +38,8 @@ export interface SessionStore {
   deleteSession(accountId: string, key: string): Promise<boolean>;
   /** Bulk-deletes ended cards (only among keys, if given). Returns the count */
   deleteEnded(accountId: string, keys?: string[]): Promise<number>;
+  /** "Clear board": deletes ended cards and sweeps the rest off the board until their agent acts again (cleared) */
+  clearBoard(accountId: string): Promise<{ deleted: number; cleared: number }>;
   /** Marks long-silent running sessions stale (all accounts). Returns the count */
   sweepStale(now?: Date): Promise<number>;
   /** Deletes old raw events (all accounts; session/turn summaries are kept). Returns the count */

@@ -109,6 +109,18 @@ describe('applyEvent', () => {
     expect(s.subagentsRunning).toBe(0);
   });
 
+  it('a cleared card comes back when the agent works or needs the user, not on notices, the idle reminder or the end', () => {
+    const done = { ...run(hook('UserPromptSubmit', { prompt: 'x' }), hook('Stop')), cleared: true };
+    for (const quiet of [
+      hook('Notification', { notification_type: 'idle_prompt' }),
+      hook('PreCompact', { trigger: 'auto' }),
+      hook('SessionEnd', { reason: 'other' }),
+    ])
+      expect(step(done, quiet).session.cleared).toBe(true);
+    expect(step(done, hook('UserPromptSubmit', { prompt: 'y' })).session.cleared).toBeUndefined();
+    expect(step(done, hook('PermissionRequest', { tool_name: 'Bash', tool_input: {} })).session.cleared).toBeUndefined();
+  });
+
   it('StopFailure → error, SessionEnd → ended, restart → idle', () => {
     const err = run(hook('UserPromptSubmit', { prompt: 'x' }), hook('StopFailure', { error_type: 'rate_limit' }));
     expect(v(err)).toMatchObject({ status: 'error', lastMessage: 'rate_limit' });
