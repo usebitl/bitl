@@ -78,6 +78,10 @@ export interface SessionSignals {
   cleared?: boolean;
   /** Pinned to the top of the column */
   pinned?: boolean;
+  /** Earlier sessions this one continues (`--resume` that started a new session), newest first — their history shows in this card's detail */
+  resumedFrom?: string[];
+  /** Continued in another session (its key): this card is off the board, its history shows in that card */
+  replacedBy?: string;
 }
 
 /** Server storage shape: signals + ciphertext */
@@ -142,4 +146,6 @@ export interface StoredTimelineItem {
   waitingReason?: string;
   toolFailed?: boolean;
   content: Partial<Record<TimelineContentField, Sealed>>;
+  /** Set on items from an earlier session (resumedFrom) — their content is sealed with that session's key */
+  sessionKey?: string;
 }

@@ -73,6 +73,42 @@ describe.each(backends)('store contract — %s', (_name, open) => {
     expect(await store.listTurns('a', 'claude-code:live')).toHaveLength(1);
   });
 
+  describe('a session continued in a new one (--resume)', () => {
+    const resumed = async (sessionId: string, from: string, event: string, extra: Record<string, unknown> = {}, sec = 0) => {
+      const rec = await hook(sessionId, event, extra, sec);
+      return { ...rec, signal: { ...rec.signal, resumedFrom: from } };
+    };
+
+    it('the earlier card leaves the board for the new one, which lists the whole chain (newest first)', async () => {
+      await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: '첫 지시' }, 1));
+      await store.ingest('a', await hook('s1', 'SessionEnd', {}, 2));
+      await store.ingest('a', await resumed('s2', 's1', 'SessionStart', { source: 'resume' }, 3));
+      await store.ingest('a', await resumed('s2', 's1', 'UserPromptSubmit', { prompt: '이어서' }, 4)); // repeated: no change
+      expect((await store.getSession('a', 'claude-code:s1'))?.replacedBy).toBe('claude-code:s2');
+      expect((await store.getSession('a', 'claude-code:s2'))?.resumedFrom).toEqual(['claude-code:s1']);
+
+      await store.ingest('a', await resumed('s3', 's2', 'SessionStart', { source: 'resume' }, 5));
+      expect((await store.getSession('a', 'claude-code:s3'))?.resumedFrom).toEqual(['claude-code:s2', 'claude-code:s1']);
+      // An earlier session BITL never saw: nothing to link
+      await store.ingest('a', await resumed('s9', 'unknown', 'SessionStart', { source: 'resume' }, 6));
+      expect((await store.getSession('a', 'claude-code:s9'))?.resumedFrom).toBeUndefined();
+    });
+
+    it('bulk deletes and "Clear" leave a continued (hidden) card alone; deleting the card that continues it takes it along', async () => {
+      await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: 'x' }, 1));
+      await store.ingest('a', await hook('s1', 'SessionEnd', {}, 2));
+      await store.ingest('a', await resumed('s2', 's1', 'UserPromptSubmit', { prompt: 'y' }, 3));
+
+      expect(await store.deleteEnded('a')).toBe(0);
+      expect(await store.clearBoard('a')).toEqual({ deleted: 0, cleared: 1 });
+      expect(await store.getSession('a', 'claude-code:s1')).toBeDefined();
+
+      expect(await store.deleteSession('a', 'claude-code:s2')).toBe(true);
+      expect(await store.getSession('a', 'claude-code:s1')).toBeUndefined();
+      expect(await store.listTurns('a', 'claude-code:s1')).toHaveLength(0);
+    });
+  });
+
   it('edit, acknowledge, delete', async () => {
     await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: 'x' }, 1));
     await store.ingest('a', await hook('s1', 'Stop', {}, 2));

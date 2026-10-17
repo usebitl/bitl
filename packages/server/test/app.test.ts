@@ -2,12 +2,12 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { StoredSession, StoredTurn } from '@bitl/shared';
+import type { StoredSession, StoredTimelineItem, StoredTurn } from '@bitl/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { drainQueue } from '../src/index.js';
 import { LOCAL_ACCOUNT as A, openSqliteStore, type SessionStore } from '../src/store/index.js';
-import { keys, view, viewTurns, wire } from './helpers.js';
+import { keys, view, viewTimeline, viewTurns, wire } from './helpers.js';
 
 let store: SessionStore;
 let app: ReturnType<typeof createApp>;
@@ -151,6 +151,19 @@ describe('session API', () => {
     expect(await (await del({})).json()).toEqual({ deleted: 1 });
     const left = (await (await app.request('/api/sessions?ended=1')).json()) as StoredSession[];
     expect(left.map((s) => s.key)).toEqual(['claude-code:live']);
+  });
+
+  it('the detail of a card that continues an earlier session (--resume) carries that session\'s history, readable with its own key', async () => {
+    await post({ ...rec('UserPromptSubmit', { prompt: '예전 지시' }, '2026-09-26T00:00:01Z'), payload: { ...rec('x').payload, hook_event_name: 'UserPromptSubmit', prompt: '예전 지시', session_id: 'old' } });
+    const next = await wire({ ...rec('UserPromptSubmit', { prompt: '새 지시' }, '2026-09-26T00:00:02Z'), payload: { ...rec('x').payload, hook_event_name: 'UserPromptSubmit', prompt: '새 지시', session_id: 'new' } });
+    await postJson({ ...next, signal: { ...next.signal, resumedFrom: 'old' } });
+
+    const detail = (await (await app.request('/api/sessions/claude-code:new')).json()) as { turns: StoredTurn[]; timeline: StoredTimelineItem[] };
+    expect((await viewTurns(detail.turns)).map((t) => t.prompt)).toEqual(['새 지시', '예전 지시']);
+    const timeline = await viewTimeline('claude-code:new', detail.timeline);
+    expect(timeline.map((t) => t.text)).toEqual(['새 지시', '예전 지시']);
+    // The earlier card is off the list the board hides, but still on the server
+    expect(((await (await app.request('/api/sessions')).json()) as StoredSession[]).find((s) => s.key === 'claude-code:old')?.replacedBy).toBe('claude-code:new');
   });
 
   it('unknown session gets 404', async () => {

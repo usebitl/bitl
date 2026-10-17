@@ -11,6 +11,7 @@ export * from './antigravity.js';
 export * from './approve.js';
 export * from './cloud.js';
 export * from './enrich.js';
+export * from './resume.js';
 export * from './keys.js';
 export * from './update-check.js';
 
@@ -20,7 +21,7 @@ export async function prepareRaw(rec: RawRecord, opts: { keys?: ContentKeys; hom
   const filled = rec.source === 'antigravity' && opts.enrich !== false ? { ...rec, payload: await fillAntigravityText(rec.payload) } : rec;
   const e = normalizeRecord(filled);
   if (!e) return null;
-  const extra = opts.enrich === false ? {} : await enrichEvent(e);
+  const extra = opts.enrich === false ? {} : await enrichEvent(e, opts.home ?? bitlHome());
   const keys = opts.keys ?? (await loadKeys(opts.home ?? bitlHome()));
   return prepareRecord(e, sealerFor(keys), extra);
 }

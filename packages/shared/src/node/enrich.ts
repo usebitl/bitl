@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { AgentEvent } from '../events.js';
 import { carriesContext, type Enrichment } from '../prepare.js';
+import { bitlHome } from './keys.js';
+import { resumedFromFor } from './resume.js';
 
 // Extra info only available on the PC (git branch, project name, session title — the user's /rename or the agent's auto title).
 // The server can't see files on the customer's PC, so the adapter attaches it before sending.
@@ -132,7 +134,7 @@ export async function projectName(cwd: string): Promise<string> {
 }
 
 /** Extra info to attach to an event. Runs git only for events where the location may change. Failed items are dropped */
-export async function enrichEvent(e: AgentEvent): Promise<Enrichment> {
+export async function enrichEvent(e: AgentEvent, home = bitlHome()): Promise<Enrichment> {
   const extra: Enrichment = {};
   const newCwd = e.nativeType === 'CwdChanged' && typeof e.raw.new_cwd === 'string' ? e.raw.new_cwd : undefined;
   const cwd = newCwd ?? e.cwd;
@@ -162,6 +164,12 @@ export async function enrichEvent(e: AgentEvent): Promise<Enrichment> {
         }),
       );
   }
+  // Claude Code `--resume` that started a new session: the earlier session's id (scanned once per resumed session, then cached)
+  tasks.push(
+    resumedFromFor(e, home).then((from) => {
+      if (from) extra.resumedFrom = from;
+    }),
+  );
   await Promise.all(tasks.map((t) => t.catch(() => {})));
   return extra;
 }

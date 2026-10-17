@@ -121,7 +121,21 @@ export class SqlStore implements SessionStore {
       return session;
     }, SqlStore.lockKey(accountId, key));
     this.emit({ type: 'session', accountId, session, prevStatus });
+    if (e.resumedFrom) return (await this.linkResumed(accountId, session, sessionKey(e.source, e.resumedFrom))) ?? session;
     return session;
+  }
+
+  /**
+   * `--resume` that started a new session: the earlier card leaves the board (replacedBy) and its history shows in the
+   * new card's detail (resumedFrom, carrying the earlier card's own predecessors). Content can't move between cards —
+   * it is sealed with each session's key — so the cards stay apart and are read together
+   */
+  private async linkResumed(accountId: string, session: StoredSession, oldKey: string): Promise<StoredSession | undefined> {
+    if (oldKey === session.key || session.resumedFrom?.includes(oldKey)) return undefined;
+    const old = await this.update(accountId, oldKey, (cur) => (cur.replacedBy === session.key ? null : { ...cur, replacedBy: session.key }));
+    if (!old) return undefined; // never seen the earlier session (e.g. from before BITL)
+    const chain = [oldKey, ...(old.resumedFrom ?? [])].filter((k) => k !== session.key);
+    return this.update(accountId, session.key, (cur) => ({ ...cur, resumedFrom: [...new Set([...chain, ...(cur.resumedFrom ?? [])])] }));
   }
 
   getSession(accountId: string, key: string) {
@@ -189,14 +203,28 @@ export class SqlStore implements SessionStore {
     return this.update(accountId, key, (cur) => acknowledge(cur, now));
   }
 
-  async deleteSession(accountId: string, key: string): Promise<boolean> {
+  /** Deletes one session with its turns and events (onlyEnded: only if it is still ended, checked under lock) */
+  private async remove(accountId: string, key: string, onlyEnded = false): Promise<boolean> {
     const deleted = await this.db.transaction(async (q) => {
-      const { changes } = await q('DELETE FROM sessions WHERE account_id = ? AND key = ?', [accountId, key]);
+      const { changes } = await q(`DELETE FROM sessions WHERE account_id = ? AND key = ?${onlyEnded ? ` AND status = 'ended'` : ''}`, [accountId, key]);
+      if (changes === 0) return false;
       await q('DELETE FROM turns WHERE account_id = ? AND session_key = ?', [accountId, key]);
       await q('DELETE FROM events WHERE account_id = ? AND session_key = ?', [accountId, key]);
-      return changes > 0;
+      return true;
     }, SqlStore.lockKey(accountId, key));
     if (deleted) this.emit({ type: 'removed', accountId, key });
+    return deleted;
+  }
+
+  /** The earlier sessions a card continues go with it — they are off the board and only shown through it */
+  private async removePredecessors(accountId: string, s: StoredSession) {
+    for (const key of s.resumedFrom ?? []) await this.remove(accountId, key);
+  }
+
+  async deleteSession(accountId: string, key: string): Promise<boolean> {
+    const cur = await this.getSession(accountId, key);
+    const deleted = await this.remove(accountId, key);
+    if (deleted && cur) await this.removePredecessors(accountId, cur);
     return deleted;
   }
 
@@ -205,22 +233,16 @@ export class SqlStore implements SessionStore {
    * To spare cards revived by a new event after the list was read, the status is rechecked under lock while deleting. Returns the number deleted
    */
   async deleteEnded(accountId: string, keys?: string[]): Promise<number> {
-    const { rows } = await this.db.query(`SELECT key FROM sessions WHERE account_id = ? AND status = 'ended' AND archived = 0`, [accountId]);
+    const { rows } = await this.db.query(`SELECT data FROM sessions WHERE account_id = ? AND status = 'ended' AND archived = 0`, [accountId]);
     const only = keys ? new Set(keys) : null;
     let n = 0;
     for (const r of rows) {
-      const key = r.key as string;
-      if (only && !only.has(key)) continue;
-      const deleted = await this.db.transaction(async (q) => {
-        const { changes } = await q(`DELETE FROM sessions WHERE account_id = ? AND key = ? AND status = 'ended'`, [accountId, key]);
-        if (changes === 0) return false;
-        await q('DELETE FROM turns WHERE account_id = ? AND session_key = ?', [accountId, key]);
-        await q('DELETE FROM events WHERE account_id = ? AND session_key = ?', [accountId, key]);
-        return true;
-      }, SqlStore.lockKey(accountId, key));
-      if (deleted) {
+      const s = JSON.parse(r.data as string) as StoredSession;
+      // A continued session is not on the board — it goes when the card that continues it goes
+      if (s.replacedBy || (only && !only.has(s.key))) continue;
+      if (await this.remove(accountId, s.key, true)) {
         n++;
-        this.emit({ type: 'removed', accountId, key });
+        await this.removePredecessors(accountId, s);
       }
     }
     return n;
@@ -232,7 +254,7 @@ export class SqlStore implements SessionStore {
     let cleared = 0;
     for (const r of rows) {
       await this.update(accountId, r.key as string, (cur) => {
-        if (cur.cleared || cur.archived) return null;
+        if (cur.cleared || cur.archived || cur.replacedBy) return null;
         cleared++;
         return { ...cur, cleared: true };
       });

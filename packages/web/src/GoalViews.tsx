@@ -24,7 +24,28 @@ const BAR: Record<BoardColumn, string> = { attention: 'bg-red-500', running: 'bg
 /** The goal's linked cards that are on the board */
 export function goalSessions(goal: Goal, sessions: Session[]): Session[] {
   const keys = new Set(goal.members);
-  return sessions.filter((s) => keys.has(s.key) && !s.archived && !s.cleared);
+  return sessions.filter((s) => keys.has(s.key) && !s.archived && !s.cleared && !s.replacedBy);
+}
+
+/**
+ * A card continued in a new session (`--resume` that started one) leaves the board; the card that continues it joins
+ * the goals the earlier card was in. Goal content is sealed in the browser, so this browser adds it (once per goal and card)
+ */
+export function useGoalsFollowResume(goals: Goal[], sessions: Session[], canEdit: boolean) {
+  const tried = useRef(new Set<string>());
+  useEffect(() => {
+    if (!canEdit) return;
+    for (const g of goals) {
+      if (g.locked || g.closedAt) continue;
+      const members = new Set(g.members);
+      for (const s of sessions) {
+        const id = `${g.id}\n${s.key}`;
+        if (members.has(s.key) || tried.current.has(id) || !s.resumedFrom?.some((k) => members.has(k))) continue;
+        tried.current.add(id);
+        void changeGoal(g, (c) => (c.members.includes(s.key) ? c : { ...c, members: [...c.members, s.key] })).catch(() => {});
+      }
+    }
+  }, [goals, sessions, canEdit]);
 }
 
 function countBy(list: Session[]): Record<BoardColumn, number> {

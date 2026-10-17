@@ -43,7 +43,8 @@ export async function openTurn(keys: ContentKeys | null, t: StoredTurn): Promise
 }
 
 export async function openTimelineItem(keys: ContentKeys | null, sessionKey: string, t: StoredTimelineItem): Promise<TimelineItem> {
-  const { values } = await openFields(keys, t.content ?? {}, sessionKey);
+  // An item from an earlier session (resumedFrom) is sealed with that session's key
+  const { values } = await openFields(keys, t.content ?? {}, t.sessionKey ?? sessionKey);
   const item: TimelineItem = { at: t.at, type: t.type, nativeType: t.nativeType, waitingReason: t.waitingReason };
   if (values.agentType) item.agentType = values.agentType;
   if (values.text) item.text = values.text;

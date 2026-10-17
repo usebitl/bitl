@@ -10,7 +10,7 @@ import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
 import { BroomIcon, GlobeIcon } from './Icons';
 import { EndedSection } from './EndedSection';
-import { GoalDialog, GoalFilter, GoalsBar, goalSessions, PlusIcon } from './GoalViews';
+import { GoalDialog, GoalFilter, GoalsBar, goalSessions, PlusIcon, useGoalsFollowResume } from './GoalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
 import { ClearDialog } from './ClearDialog';
@@ -23,9 +23,10 @@ const COLUMNS: { id: BoardColumn; dot: string }[] = [
 ];
 
 /**
- * Not on the board: archived, swept off by "Clear" (until the agent acts again), or never got a prompt (still reachable by link)
+ * Not on the board: archived, swept off by "Clear" (until the agent acts again), continued in another session
+ * (its history shows in that card), or never got a prompt (still reachable by link)
  */
-const offBoard = (s: Session) => s.archived || Boolean(s.cleared) || isEmptySession(s);
+const offBoard = (s: Session) => s.archived || Boolean(s.cleared) || Boolean(s.replacedBy) || isEmptySession(s);
 
 /**
  * Pinned cards first. Then tasks waiting for you, longest-waiting first; running tasks, most recently started first
@@ -214,6 +215,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
   const lockedCount = useMemo(() => sessions.filter((s) => s.locked).length, [sessions]);
   // Creating/editing goals: when keys exist and not read-only
   const canEdit = Boolean(keys) && !readonly;
+  useGoalsFollowResume(goals, sessions, canEdit);
   const showLocked = (keys === null && lockedNotice?.showWhenNoKeys !== false) || lockedCount > 0;
 
   useEffect(() => {

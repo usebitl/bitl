@@ -272,7 +272,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
 
       {/* Instructions / timeline switch via tabs (same in wide view — read instructions and responses wide, timeline only when needed) */}
       <nav className="border-b border-zinc-200 px-5 dark:border-zinc-800">
-        <div className={`flex gap-1 ${wide ? 'mx-auto max-w-[900px]' : ''}`}>
+        <div className="flex gap-1">
         {(
           [
             ['turns', msg('detail.tabTurns', { n: turns.length })],
@@ -297,8 +297,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             key={id}
             className={['h-full overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]', tab === id ? '' : 'hidden'].join(' ')}
           >
-            {/* Wide view: uses the screen width, but the body is centered at about 900px so lines don't get too long */}
-            <div className={wide ? 'mx-auto max-w-[900px]' : undefined}>
+            {/* Wide view: the body stays left-aligned with the tabs, at most about 900px so lines don't get too long */}
+            <div className={wide ? 'max-w-[900px]' : undefined}>
             {!detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
             ) : id === 'turns' ? (

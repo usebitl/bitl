@@ -128,6 +128,13 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
     const session = await store.getSession(accountId, key);
     if (!session) return c.json({ error: 'not found' }, 404);
     const [turns, timeline] = await Promise.all([store.listTurns(accountId, key), store.listTimeline(accountId, key)]);
+    // Continued from earlier sessions (`--resume` that started a new session): their history follows, each item marked
+    // with its own session key (its content is sealed with that key)
+    for (const prev of session.resumedFrom ?? []) {
+      const [t, items] = await Promise.all([store.listTurns(accountId, prev), store.listTimeline(accountId, prev)]);
+      turns.push(...t);
+      timeline.push(...items.map((item) => ({ ...item, sessionKey: prev })));
+    }
     return c.json({ session, turns, timeline });
   });
 

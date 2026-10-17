@@ -50,6 +50,11 @@ export interface Signal {
   toolFailed?: boolean;
   /** Tag (HMAC) of the instruction/request content. Compares whether it's the same request without knowing the value */
   requestTag?: string;
+  /**
+   * The session this one continues (its sessionId): Claude Code's `--resume` may start a new session with the old
+   * conversation copied in. Found on the PC from the transcripts (node/resume.ts); the server hides the old card
+   */
+  resumedFrom?: string;
 }
 
 export interface WireRecord {
@@ -59,7 +64,10 @@ export interface WireRecord {
 }
 
 /** Extra info only available on the PC (node/enrich.ts) */
-export type Enrichment = Pick<EventContent, 'project' | 'gitBranch' | 'aiTitle'>;
+export type Enrichment = Pick<EventContent, 'project' | 'gitBranch' | 'aiTitle'> & {
+  /** Not content: goes into the signal (the server links the cards) */
+  resumedFrom?: string;
+};
 
 /** Length limit (chars) for question/response text. Generous so the detail view shows the full response — 2026-10-04 500 → 10,000 */
 export const TEXT_LIMIT = 10_000;
@@ -81,7 +89,8 @@ export function activityOf(e: Pick<AgentEvent, 'tool' | 'agentId' | 'agentType'>
 }
 
 /** Normalized event → signal + plaintext content (before sealing). Minimization is complete here */
-export function splitEvent(e: AgentEvent, extra: Enrichment = {}): { signal: Signal; content: EventContent; tagSource?: string } {
+export function splitEvent(e: AgentEvent, enrichment: Enrichment = {}): { signal: Signal; content: EventContent; tagSource?: string } {
+  const { resumedFrom, ...extra } = enrichment;
   const newCwd = e.nativeType === 'CwdChanged' && typeof e.raw.new_cwd === 'string' ? e.raw.new_cwd : undefined;
   const signal: Signal = {
     source: e.source,
@@ -94,6 +103,7 @@ export function splitEvent(e: AgentEvent, extra: Enrichment = {}): { signal: Sig
     agentNamed: e.agentId || e.agentType !== undefined ? Boolean(e.agentType) : undefined,
     waitingReason: e.waitingReason,
     toolFailed: e.tool?.failed || undefined,
+    resumedFrom,
   };
   const content: EventContent = {
     title: e.type === 'prompt' && e.text ? oneLine(e.text, TITLE_LIMIT) : undefined,

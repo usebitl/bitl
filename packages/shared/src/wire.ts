@@ -22,6 +22,7 @@ export const SignalSchema = z.object({
   waitingReason: WaitingReason.optional(),
   toolFailed: z.boolean().optional(),
   requestTag: z.string().max(100).optional(),
+  resumedFrom: id.optional(),
 });
 
 export const WireRecordSchema = z.object({

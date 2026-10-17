@@ -136,7 +136,7 @@ export function startPushNotifier(opts: {
 
   const notify = async (accountId: string, s: StoredSession) => {
     if (!(await push.list(accountId)).length) return;
-    const attention = (await store.listSessions(accountId)).filter((x) => ALERT.has(x.status) && !isEmptySession(x) && !x.cleared).length;
+    const attention = (await store.listSessions(accountId)).filter((x) => ALERT.has(x.status) && !isEmptySession(x) && !x.cleared && !x.replacedBy).length;
     await sendAll(accountId, buildPayload(s, attention), topicOf(s.key));
   };
 
@@ -145,7 +145,7 @@ export function startPushNotifier(opts: {
     const s = change.session;
     // Empty sessions are not on the board (e.g. one relaying other sessions' notifications) — those sessions notify for themselves
     // Cleared cards are off the board too (a card that needs the user again is no longer cleared)
-    if (!ALERT.has(s.status) || change.prevStatus === s.status || isEmptySession(s) || s.cleared) return;
+    if (!ALERT.has(s.status) || change.prevStatus === s.status || isEmptySession(s) || s.cleared || s.replacedBy) return;
     const id = `${change.accountId}\n${s.key}`;
     const t = Date.now();
     if (t - (lastSent.get(id) ?? 0) < cooldownMs) return;
