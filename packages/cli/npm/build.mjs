@@ -1,7 +1,7 @@
 // Builds the npm package (@usebitl/cli, command bitl). Runs before `npm pack`/`npm publish` (prepack).
 //   dist/cli.mjs   — packages/cli/src/index.ts bundled into one file, including the local server (bitl start)
 //   web/           — the local board UI that bitl start serves
-//   adapters/      — files the hooks run (bitl-hook, send, bitl-approve, bitl-agy-watch + dist/core.mjs)
+//   adapters/      — files the hooks run (bitl-hook, send, bitl-approve, bitl-agy-watch, bitl-cc-watch + dist/core.mjs)
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -71,7 +71,7 @@ await viteBuild({ root: webRoot, configFile: join(webRoot, 'vite.sw.config.ts'),
 copyFileSync(existsSync(here('../../../LICENSE')) ? here('../../../LICENSE') : here('../../../scripts/oss/overlay/LICENSE'), here('LICENSE'));
 
 mkdirSync(here('adapters'), { recursive: true });
-for (const f of ['bitl-hook.mjs', 'send.mjs', 'bitl-approve.mjs', 'bitl-agy-watch.mjs']) {
+for (const f of ['bitl-hook.mjs', 'send.mjs', 'bitl-approve.mjs', 'bitl-agy-watch.mjs', 'bitl-cc-watch.mjs']) {
   copyFileSync(here(`../../adapters/${f}`), here(`adapters/${f}`));
 }
 // Use LF line endings: publishing a Windows checkout (CRLF) as is makes #!/usr/bin/env node\r fail on macOS/Linux

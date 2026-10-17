@@ -12,6 +12,7 @@ export * from './approve.js';
 export * from './cloud.js';
 export * from './enrich.js';
 export * from './resume.js';
+export * from './claude-watch.js';
 export * from './keys.js';
 export * from './update-check.js';
 

@@ -124,6 +124,7 @@ export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string)
     }
     case 'Stop':
     case 'Interrupt': // Codex: the in-progress turn was interrupted
+    case 'bitl:Interrupted': // Claude Code sends no hook on interrupt — bitl-cc-watch.mjs reads it from the transcript
       type = 'turn_end';
       text = str(raw.last_assistant_message);
       break;

@@ -57,6 +57,22 @@ function watchAgyPermission(payload) {
 }
 
 /**
+ * Claude Code sends no hook when the user interrupts a turn → on each prompt, spawn a watcher that reads the transcript
+ * until the turn ends and reports an interrupt (bitl-cc-watch.mjs). Only ids and the path are passed, never the prompt
+ */
+function watchClaudeTurn(payload) {
+  try {
+    const { session_id: sessionId, transcript_path: transcriptPath, cwd } = payload;
+    if (typeof sessionId !== 'string' || typeof transcriptPath !== 'string') return;
+    const script = join(import.meta.dirname, 'bitl-cc-watch.mjs');
+    const args = [script, sessionId, transcriptPath, typeof cwd === 'string' ? cwd : ''];
+    spawn(process.execPath, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch {
+    // the hook carries on even if the watcher can't start
+  }
+}
+
+/**
  * Claude Code agent view (`claude agents`): the daemon keeps pre-warmed sessions parked as spares (CLAUDE_BG_SOURCE=spare).
  * A parked spare fires SessionStart but gets no prompt until a task is dispatched to it, and is retired after an hour idle
  * without a SessionEnd reaching us — so its start would sit on the board as an empty card. Drop only the start: if a task
@@ -84,6 +100,7 @@ async function main() {
   const event = argValue('--event');
   if (event && payload && typeof payload === 'object' && payload.hook_event_name === undefined) payload.hook_event_name = event;
   if (source === 'antigravity' && event === 'PreToolUse') watchAgyPermission(payload);
+  if (source === 'claude-code' && payload?.hook_event_name === 'UserPromptSubmit') watchClaudeTurn(payload);
   if (isParkedSpareStart(source, payload)) return;
   await sendRecord({ source, receivedAt, payload });
 }
