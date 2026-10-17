@@ -52,6 +52,8 @@ export interface AppOptions {
   /** Whether the account may write new data. Defaults to always */
   access?: AccessPolicy;
   extension?: AppExtension;
+  /** Which build is running (e.g. the git commit), returned by /api/health so a deploy can be checked */
+  build?: string;
 }
 
 
@@ -64,11 +66,11 @@ export async function ingestRecord(store: SessionStore, accountId: string, body:
   return rec ? store.ingest(accountId, rec) : null;
 }
 
-export function createApp({ store, webDist, account, push, approvals, goals, access = allowAll, extension }: AppOptions) {
+export function createApp({ store, webDist, account, push, approvals, goals, access = allowAll, extension, build }: AppOptions) {
   const app = new Hono<Env>();
   const resolve: AccountResolver = account ?? (() => LOCAL_ACCOUNT);
 
-  app.get('/api/health', (c) => c.json({ ok: true }));
+  app.get('/api/health', (c) => c.json(build ? { ok: true, build } : { ok: true }));
 
   // The web app asks first: is this local mode (with an extension: login state, etc.)
   app.get('/api/me', async (c) => c.json(extension?.me ? await extension.me(c) : { mode: 'local' }));

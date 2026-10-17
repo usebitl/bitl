@@ -31,6 +31,14 @@ const rec = (event: string, extra: Record<string, unknown> = {}, receivedAt = ne
   payload: { session_id: 's1', cwd: 'C:/work/api', hook_event_name: event, ...extra },
 });
 
+describe('GET /api/health', () => {
+  it('reports the running build only when one is given', async () => {
+    expect(await (await app.request('/api/health')).json()).toEqual({ ok: true });
+    const built = createApp({ store, build: 'abc1234' });
+    expect(await (await built.request('/api/health')).json()).toEqual({ ok: true, build: 'abc1234' });
+  });
+});
+
 describe('POST /api/events', () => {
   it('accepts sealed records { v, signal, content }', async () => {
     const res = await post(rec('UserPromptSubmit', { prompt: '안녕' }));
