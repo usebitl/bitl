@@ -117,7 +117,24 @@ export function GoalsBar({
 }
 
 /** Filtering by a goal: what you are viewing, plus edit / finish / show all */
-export function GoalFilter({ goal, count, onEdit, onClear }: { goal: Goal; count: number; onEdit: () => void; onClear: () => void }) {
+/** view: the goal's cards, or the notes left on it and on its cards */
+export type GoalView = 'cards' | 'entries';
+
+export function GoalFilter({
+  goal,
+  count,
+  view,
+  onView,
+  onEdit,
+  onClear,
+}: {
+  goal: Goal;
+  count: number;
+  view: GoalView;
+  onView: (v: GoalView) => void;
+  onEdit: () => void;
+  onClear: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const finish = async () => {
     setBusy(true);
@@ -135,6 +152,19 @@ export function GoalFilter({ goal, count, onEdit, onClear }: { goal: Goal; count
         ◎ {rich('goal.filtering', { b: (s) => <b className="text-sky-700 dark:text-sky-300">{s}</b> }, { title: goal.title, n: count })}
       </span>
       <span className="ml-auto flex flex-wrap gap-2">
+        <span className="flex rounded-lg border border-zinc-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-900" role="group" aria-label={t('goal.view')}>
+          {(['cards', 'entries'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => onView(v)}
+              className={`rounded-md px-2.5 py-0.5 text-sm ${view === v ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 dark:text-zinc-300'}`}
+            >
+              {v === 'cards' ? t('goal.view.cards') : t('goal.view.entries')}
+            </button>
+          ))}
+        </span>
         <button type="button" className={btn} onClick={onEdit}>
           {t('goal.edit')}
         </button>

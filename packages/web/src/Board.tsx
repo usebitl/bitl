@@ -8,9 +8,10 @@ import { SessionCard } from './SessionCard';
 import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
-import { BroomIcon, GlobeIcon } from './Icons';
+import { BroomIcon, GlobeIcon, JournalIcon } from './Icons';
 import { EndedSection } from './EndedSection';
-import { GoalDialog, GoalFilter, GoalsBar, goalSessions, PlusIcon, useGoalsFollowResume } from './GoalViews';
+import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, PlusIcon, useGoalsFollowResume } from './GoalViews';
+import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
 import { ClearDialog } from './ClearDialog';
@@ -125,6 +126,25 @@ function useDetailMode(): [DetailMode, () => void] {
   return [mode, toggle];
 }
 
+const JOURNAL_HASH = '#journal';
+
+/** The journal opens over the board at #journal — so Back closes it in mobile webviews */
+function useJournalOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => window.location.hash === JOURNAL_HASH);
+  useEffect(() => {
+    const onHash = () => setOpen(window.location.hash === JOURNAL_HASH);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const change = useCallback((next: boolean) => {
+    const base = window.location.pathname + window.location.search;
+    if (next && window.location.hash !== JOURNAL_HASH) history.pushState(null, '', base + JOURNAL_HASH);
+    else if (!next && window.location.hash === JOURNAL_HASH) history.replaceState(null, '', base);
+    setOpen(next);
+  }, []);
+  return [open, change];
+}
+
 /**
  * Things to plug into the board — local mode passes none.
  * Other servers (with sign-in and device pairing) add notices, menu items and dialogs here.
@@ -159,6 +179,9 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
   const [goalDialog, setGoalDialog] = useState<{ goal?: Goal; preselect?: string[] } | null>(null);
+  // A chosen goal shows its cards, or the notes left on it and its cards
+  const [goalView, setGoalView] = useState<GoalView>('cards');
+  const [journalOpen, setJournalOpen] = useJournalOpen();
   // "Clear" dialog, then a short toast with the result
   const [clearOpen, setClearOpen] = useState(false);
   const [cleared, setCleared] = useState<boolean | null>(null);
@@ -269,7 +292,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           >
             <BroomIcon />
           </button>
-          <AppMenu {...menu} />
+          <AppMenu {...menu} onJournal={() => setJournalOpen(true)} />
         </div>
         {banners}
         {showLocked && (
@@ -296,11 +319,19 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
         <GoalFilter
           goal={activeGoal}
           count={goalSessions(activeGoal, sessions).length}
+          view={goalView}
+          onView={setGoalView}
           onEdit={() => setGoalDialog({ goal: activeGoal })}
           onClear={() => setGoalId(null)}
         />
       )}
 
+      {activeGoal && goalView === 'entries' ? (
+        <section className="pb-6">
+          <GoalJournal goal={activeGoal} sessions={sessions} now={now} canEdit={canEdit} />
+        </section>
+      ) : (
+      <>
       <main className="@container">
         <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @5xl:grid-cols-4">
         {COLUMNS.map((col) => (
@@ -334,6 +365,10 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
       </main>
 
       <EndedSection sessions={ended} now={now} onOpen={select} scoped={Boolean(activeGoal)} canEdit={canEdit} />
+      </>
+      )}
+
+      {journalOpen && <Journal goals={goals} sessions={sessions} now={now} canEdit={canEdit} onClose={() => setJournalOpen(false)} />}
 
       {goalDialog && (
         <GoalDialog
@@ -379,6 +414,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           onClose={() => select(null)}
           approval={approvalFor.get(selected.key)}
           keys={keys}
+          canEdit={canEdit}
         />
       )}
     </div>
@@ -386,7 +422,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 }
 
 /** The header ☰ menu (same on PC and phone): plugged-in items and language */
-function AppMenu({ items, footer, dot = false }: NonNullable<BoardProps['menu']>) {
+function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardProps['menu']> & { onJournal: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   return (
@@ -405,6 +441,18 @@ function AppMenu({ items, footer, dot = false }: NonNullable<BoardProps['menu']>
         <>
           <div className="fixed inset-0 z-20" onClick={close} />
           <div className="absolute right-3 top-full z-30 mt-1 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className={MENU_ITEM}
+              onClick={() => {
+                close();
+                onJournal();
+              }}
+            >
+              <JournalIcon className={MENU_ICON} />
+              {t('journal.title')}
+            </button>
             {items?.(close)}
             <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200">
               <GlobeIcon className={MENU_ICON} />

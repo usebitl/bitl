@@ -8,7 +8,7 @@ import { type AccessPolicy, allowAll } from './access.js';
 import { closeApprovalsOnResume } from './approvals-api.js';
 import { createApp, ingestRecord } from './app.js';
 import { startPushNotifier, webPushSender } from './push.js';
-import { ApprovalStore, GoalStore, LOCAL_ACCOUNT, openSqliteStore, PushStore, type SessionStore, type SqlStore } from './store/index.js';
+import { ApprovalStore, EntryStore, GoalStore, LOCAL_ACCOUNT, openSqliteStore, PushStore, type SessionStore, type SqlStore } from './store/index.js';
 
 export const BITL_HOME = process.env.BITL_HOME?.trim() || join(homedir(), '.bitl');
 export const PORT = Number(process.env.BITL_PORT ?? 7777);
@@ -52,7 +52,7 @@ export async function drainQueue(store: SessionStore, home = BITL_HOME): Promise
   return n;
 }
 
-/** Shared services on top of the store: remote approval, goals, web push (no notifications for accounts where canWrite is false) */
+/** Shared services on top of the store: remote approval, goals, entries, web push (no notifications for accounts where canWrite is false) */
 export function coreServices(store: SqlStore, access: AccessPolicy = allowAll) {
   const logError = errorLogger;
   // Web push: when a card turns "waiting for you" or error, notify subscribed devices (content stays ciphertext — the device decrypts it)
@@ -62,6 +62,7 @@ export function coreServices(store: SqlStore, access: AccessPolicy = allowAll) {
   // Remote approval: relay requests posted by the PC's hook until the phone allows or denies
   const approvals = new ApprovalStore(store.db);
   const goals = new GoalStore(store.db);
+  const entries = new EntryStore(store.db);
   // When a card leaves "waiting for you" (answered in the terminal or on another device), close leftover approval requests
   const offApprovalCleanup = closeApprovalsOnResume(store, approvals, logError('approval request cleanup'));
   const notifier = pushStore
@@ -76,7 +77,7 @@ export function coreServices(store: SqlStore, access: AccessPolicy = allowAll) {
     : undefined;
   return {
     /** Passed to createApp */
-    app: { push: pushStore && { store: pushStore, publicKey: vapidPublic! }, approvals, goals, access },
+    app: { push: pushStore && { store: pushStore, publicKey: vapidPublic! }, approvals, goals, entries, access },
     approvals,
     pushing: Boolean(notifier),
     stop() {

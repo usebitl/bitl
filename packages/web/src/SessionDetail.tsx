@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, postAction, type SessionDetail as Detail } from './api';
 import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
+import { type Entry, writeEntry } from './entries';
+import { EntryComposer, EntryList, KindChip, useEntries } from './EntryViews';
 
 /**
  * Detail view modes
@@ -114,21 +116,41 @@ function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activi
   );
 }
 
-function Timeline({ items, now }: { items: TimelineItem[]; now: number }) {
-  if (items.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noEvents')}</p>;
+/** The agent's events, with the person's own entries slotted in at the time they were written */
+function Timeline({ items, entries, now }: { items: TimelineItem[]; entries: Entry[]; now: number }) {
+  if (items.length === 0 && entries.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noEvents')}</p>;
+  const rows = [...items.map((item) => ({ at: item.at, item })), ...entries.map((entry) => ({ at: entry.createdAt, entry }))].sort((a, b) =>
+    b.at.localeCompare(a.at),
+  );
   return (
     <ol className="space-y-1.5 font-mono text-xs">
-      {items.map((t, i) => (
-        <li key={`${t.at}-${i}`} className="flex gap-2">
-          <Time iso={t.at} now={now} />
-          <span className="shrink-0">{TIMELINE_ICON[t.type] ?? '·'}</span>
-          <span className={`min-w-0 break-all ${t.tool?.failed || t.type === 'error' ? 'text-red-500' : 'text-zinc-700 dark:text-zinc-300'}`}>
-            {t.agentType && <span className="text-violet-500">[{t.agentType}] </span>}
-            {timelineText(t)}
-          </span>
-        </li>
-      ))}
+      {rows.map((r, i) =>
+        'entry' in r ? (
+          <li key={r.entry.id} className="my-2 flex gap-2 font-sans">
+            <Time iso={r.at} now={now} />
+            <div className="flex min-w-0 flex-1 gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <KindChip entry={r.entry} />
+              <span className="min-w-0 whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-100">{r.entry.text}</span>
+            </div>
+          </li>
+        ) : (
+        <TimelineRow key={`${r.at}-${i}`} t={r.item} now={now} />
+        ),
+      )}
     </ol>
+  );
+}
+
+function TimelineRow({ t, now }: { t: TimelineItem; now: number }) {
+  return (
+    <li className="flex gap-2">
+      <Time iso={t.at} now={now} />
+      <span className="shrink-0">{TIMELINE_ICON[t.type] ?? '·'}</span>
+      <span className={`min-w-0 break-all ${t.tool?.failed || t.type === 'error' ? 'text-red-500' : 'text-zinc-700 dark:text-zinc-300'}`}>
+        {t.agentType && <span className="text-violet-500">[{t.agentType}] </span>}
+        {timelineText(t)}
+      </span>
+    </li>
   );
 }
 
@@ -143,15 +165,18 @@ interface Props {
   /** Remote approval request (this card's oldest) */
   approval?: Approval;
   keys?: ContentKeys | null;
+  /** Can write entries (has keys, not read-only) */
+  canEdit?: boolean;
 }
 
-export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys }: Props) {
+export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys, canEdit = false }: Props) {
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<'turns' | 'timeline'>('turns');
+  const [tab, setTab] = useState<'turns' | 'timeline' | 'entries'>('turns');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [note, setNote] = useState(session.note ?? '');
-  const noteDirty = useRef(false);
   const wide = mode === 'wide';
+  const { entries } = useEntries({ session: session.key });
+  // Kept with each entry, so it still says where it was written after the card is gone
+  const where = { title: displayTitle(session, titleLabels()), project: session.project, branch: session.gitBranch, source: SOURCE_LABEL[session.source] };
 
   // reload the detail when the session gets new events
   useEffect(() => {
@@ -162,24 +187,24 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
     };
   }, [session.key, session.lastEventAt, session.turnCount]);
 
+  // The old note becomes the card's first entry (once): entries replace notes
+  const moving = useRef(false);
   useEffect(() => {
-    if (!noteDirty.current) setNote(session.note ?? '');
-  }, [session.note]);
+    if (!session.note || !canEdit || moving.current) return;
+    moving.current = true;
+    writeEntry({ text: session.note, fromNote: true, where }, session.key)
+      .then(() => patchSession(session.key, { note: '' }))
+      .catch(() => {
+        moving.current = false;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.note, canEdit, session.key]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-
-  const saveNote = async () => {
-    if (!noteDirty.current) return;
-    noteDirty.current = false;
-    // without keys we cannot encrypt, so don't save (never send plaintext to the server) — retry next time
-    await patchSession(session.key, { note }).catch(() => {
-      noteDirty.current = true;
-    });
-  };
 
   const resume = resumeCommand(session);
   const turns = detail?.turns ?? [];
@@ -238,7 +263,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
           </button>
         </div>
 
-        <div className={wide ? 'mt-2 grid gap-3 lg:grid-cols-[1fr_1fr] lg:items-start' : 'mt-2'}>
+        <div className="mt-2">
           <div className="space-y-2">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
               <span>
@@ -255,17 +280,6 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
               <CopyField text={resume} />
             )}
           </div>
-          <textarea
-            value={note}
-            onChange={(e) => {
-              noteDirty.current = true;
-              setNote(e.target.value);
-            }}
-            onBlur={saveNote}
-            placeholder={msg('detail.notePlaceholder')}
-            rows={2}
-            className={`w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:focus:border-zinc-600 ${wide ? '' : 'mt-3'}`}
-          />
         </div>
         {approval && <ApprovalBox approval={approval} keys={keys} now={now} full />}
       </header>
@@ -277,6 +291,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
           [
             ['turns', msg('detail.tabTurns', { n: turns.length })],
             ['timeline', msg('detail.tabTimeline', { n: timeline.length })],
+            ['entries', msg('detail.tabEntries', { n: entries.length })],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -292,19 +307,24 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
       </nav>
 
       <div className="min-h-0 flex-1">
-        {(['turns', 'timeline'] as const).map((id) => (
+        {(['turns', 'timeline', 'entries'] as const).map((id) => (
           <section
             key={id}
             className={['h-full overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]', tab === id ? '' : 'hidden'].join(' ')}
           >
             {/* Wide view: the body stays left-aligned with the tabs, at most about 900px so lines don't get too long */}
             <div className={wide ? 'max-w-[900px]' : undefined}>
-            {!detail ? (
+            {id === 'entries' ? (
+              <div className="space-y-4">
+                <EntryComposer sessionKey={session.key} where={where} canEdit={canEdit} placeholder={msg('entry.placeholderCard')} />
+                <EntryList entries={entries} now={now} canEdit={canEdit} empty={msg('entry.emptyCard')} />
+              </div>
+            ) : !detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
             ) : id === 'turns' ? (
               <TurnList turns={turns} now={now} activity={activity} />
             ) : (
-              <Timeline items={timeline} now={now} />
+              <Timeline items={timeline} entries={entries} now={now} />
             )}
             </div>
           </section>

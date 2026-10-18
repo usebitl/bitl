@@ -45,6 +45,14 @@ export const CardIcon = (p: P) => (
   </Icon>
 );
 
+/** Open book — the journal (notes left along the way) */
+export const JournalIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 6.5c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5z" />
+    <path d="M12 6.5V20" />
+  </Icon>
+);
+
 /** Broom — "Clear" (sweep every card off for a fresh start) */
 export const BroomIcon = (p: P) => (
   <Icon {...p}>

@@ -1,3 +1,4 @@
+import { announceEntry, openEntry, type StoredEntry } from './entries';
 import { type ContentKeys, openSession, type Session, type StoredSession } from '@bitl/shared/client';
 import { useEffect, useState } from 'react';
 import { type Approval, openApproval, type StoredApproval } from './approvals';
@@ -117,6 +118,19 @@ export function useSessions(keys: ContentKeys | null | undefined) {
           return next;
         }),
       );
+    });
+    // Entries have no snapshot (lists fetch their own pages) — pass live changes on to whatever shows entries
+    es.addEventListener('entry', (ev) => {
+      const stored = JSON.parse((ev as MessageEvent).data) as StoredEntry;
+      inOrder(async () => {
+        announceEntry({ type: 'entry', entry: await openEntry(keys, stored) });
+      });
+    });
+    es.addEventListener('entry-removed', (ev) => {
+      const { id } = JSON.parse((ev as MessageEvent).data) as { id: string };
+      inOrder(async () => {
+        announceEntry({ type: 'entry-removed', id });
+      });
     });
     es.addEventListener('removed', (ev) => {
       const { key } = JSON.parse((ev as MessageEvent).data) as { key: string };

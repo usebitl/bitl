@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { APPROVAL_SCHEMA } from './approval-store.js';
+import { ENTRY_SCHEMA } from './entry-store.js';
 import { GOAL_SCHEMA } from './goal-store.js';
 import { PUSH_SCHEMA } from './push-store.js';
 import { SqlStore } from './sql-store.js';
@@ -15,7 +16,7 @@ import { type Driver, LOCAL_ACCOUNT, type Query, type Row } from './types.js';
  *   4: adds device, pairing and account key tables (for cloud mode, additive only)
  *   5: adds the web push subscription table (additive only)
  */
-const SCHEMA_VERSION = 10; // v10: goals
+const SCHEMA_VERSION = 11; // v10: goals, v11: entries
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -58,7 +59,8 @@ CREATE INDEX IF NOT EXISTS events_session ON events(account_id, session_key, at)
 CREATE INDEX IF NOT EXISTS events_at ON events(at);
 ${PUSH_SCHEMA}
 ${APPROVAL_SCHEMA}
-${GOAL_SCHEMA}`;
+${GOAL_SCHEMA}
+${ENTRY_SCHEMA}`;
 
 /** Extra tables on top of this store (for testing cloud features on SQLite). Additive only */
 export interface SchemaExtension {

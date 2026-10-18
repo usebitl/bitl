@@ -6,8 +6,9 @@ import { streamSSE } from 'hono/streaming';
 import { parseWireRecord, SealedValue, type StoredSession } from '@bitl/shared';
 import { type AccessPolicy, allowAll } from './access.js';
 import { mountApprovals } from './approvals-api.js';
+import { mountEntries } from './entries-api.js';
 import { mountGoals } from './goals-api.js';
-import { type ApprovalChange, type ApprovalStore, type GoalChange, type GoalStore, LOCAL_ACCOUNT, type PushStore, type SessionEdit, type SessionStore, type StoreChange } from './store/index.js';
+import { type ApprovalChange, type ApprovalStore, type EntryChange, type EntryStore, type GoalChange, type GoalStore, LOCAL_ACCOUNT, type PushStore, type SessionEdit, type SessionStore, type StoreChange } from './store/index.js';
 
 /**
  * Which account a request belongs to. null means 401.
@@ -49,6 +50,8 @@ export interface AppOptions {
   approvals?: ApprovalStore;
   /** Goals (group several cards under a purpose the user defines) */
   goals?: GoalStore;
+  /** Entries (short notes left along the way — solved, learned, in the flow). They outlive cards */
+  entries?: EntryStore;
   /** Whether the account may write new data. Defaults to always */
   access?: AccessPolicy;
   extension?: AppExtension;
@@ -66,7 +69,7 @@ export async function ingestRecord(store: SessionStore, accountId: string, body:
   return rec ? store.ingest(accountId, rec) : null;
 }
 
-export function createApp({ store, webDist, account, push, approvals, goals, access = allowAll, extension, build }: AppOptions) {
+export function createApp({ store, webDist, account, push, approvals, goals, entries, access = allowAll, extension, build }: AppOptions) {
   const app = new Hono<Env>();
   const resolve: AccountResolver = account ?? (() => LOCAL_ACCOUNT);
 
@@ -99,6 +102,7 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
   if (push) mountPush(app, push.store);
   if (approvals) mountApprovals(app, approvals, access);
   if (goals) mountGoals(app, goals, access);
+  if (entries) mountEntries(app, entries, access);
 
   app.post('/api/events', async (c) => {
     let body: unknown;
@@ -190,7 +194,7 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
   app.get('/api/stream', (c) => {
     const accountId = c.var.accountId;
     return streamSSE(c, async (stream) => {
-      const queue: (StoreChange | ({ type: 'approval' } & ApprovalChange) | GoalChange)[] = [];
+      const queue: (StoreChange | ({ type: 'approval' } & ApprovalChange) | GoalChange | EntryChange)[] = [];
       let wake: (() => void) | undefined;
       // Subscribe first so changes made while reading the snapshot aren't missed
       const offSessions = store.subscribe((change) => {
@@ -208,10 +212,17 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
         queue.push(change);
         wake?.();
       });
+      // Entries: no snapshot (the browser pages through them), only entry · entry-removed events
+      const offEntries = entries?.subscribe((change) => {
+        if (change.accountId !== accountId) return;
+        queue.push(change);
+        wake?.();
+      });
       const unsubscribe = () => {
         offSessions();
         offApprovals?.();
         offGoals?.();
+        offEntries?.();
       };
       stream.onAbort(() => {
         unsubscribe();
@@ -243,7 +254,11 @@ export function createApp({ store, webDist, account, push, approvals, goals, acc
                 ? { event: 'goal', data: JSON.stringify(change.goal) }
                 : change.type === 'goal-removed'
                   ? { event: 'goal-removed', data: JSON.stringify({ id: change.id }) }
-                  : { event: 'removed', data: JSON.stringify({ key: change.key }) },
+                  : change.type === 'entry'
+                    ? { event: 'entry', data: JSON.stringify(change.entry) }
+                    : change.type === 'entry-removed'
+                      ? { event: 'entry-removed', data: JSON.stringify({ id: change.id }) }
+                      : { event: 'removed', data: JSON.stringify({ key: change.key }) },
         );
       }
       unsubscribe();
