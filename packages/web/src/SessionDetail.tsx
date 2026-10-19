@@ -23,19 +23,17 @@ export type DetailMode = 'side' | 'wide';
 export const SIDE_PANEL_CLASS = 'sm:w-[34rem]';
 export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem]'; // panel width + 1.5rem gap
 
-const TIMELINE_ICON: Record<string, string> = {
-  prompt: '💬',
-  tool_start: '🔧',
-  tool_end: '⚠️',
-  waiting: '✋',
-  turn_end: '✅',
-  subagent_start: '🧩',
-  subagent_end: '🧩',
-  error: '❌',
-  session_start: '▶️',
-  session_end: '⏹️',
-  progress: '⏳',
+/** Color of each event's kind label in the timeline (words, not emoji: they render differently per OS and shout) */
+const EVENT_TONE: Record<string, string> = {
+  prompt: 'text-sky-600 dark:text-sky-400',
+  waiting: 'text-red-600 dark:text-red-400',
+  error: 'text-red-600 dark:text-red-400',
+  turn_end: 'text-amber-600 dark:text-amber-400',
+  subagent_start: 'text-violet-600 dark:text-violet-400',
+  subagent_end: 'text-violet-600 dark:text-violet-400',
 };
+const EVENT_TYPES = ['prompt', 'tool_start', 'tool_end', 'waiting', 'turn_end', 'subagent_start', 'subagent_end', 'error', 'session_start', 'session_end', 'progress'] as const;
+const eventLabel = (type: string) => ((EVENT_TYPES as readonly string[]).includes(type) ? t(`detail.ev.${type as (typeof EVENT_TYPES)[number]}`) : type);
 
 /** UI strings. Named msg because this file often uses t for turn/timeline items */
 const msg = t;
@@ -117,24 +115,29 @@ function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activi
 }
 
 /** The agent's events, with the person's own entries slotted in at the time they were written */
+/**
+ * The agent's events, with the person's own entries slotted in at the time they were written.
+ * Each row: a small "time · kind" line, then the content across the full width (a time column squeezed the text)
+ */
 function Timeline({ items, entries, now }: { items: TimelineItem[]; entries: Entry[]; now: number }) {
   if (items.length === 0 && entries.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noEvents')}</p>;
   const rows = [...items.map((item) => ({ at: item.at, item })), ...entries.map((entry) => ({ at: entry.createdAt, entry }))].sort((a, b) =>
     b.at.localeCompare(a.at),
   );
   return (
-    <ol className="space-y-1.5 font-mono text-xs">
+    <ol className="space-y-3">
       {rows.map((r, i) =>
         'entry' in r ? (
-          <li key={r.entry.id} className="my-2 flex gap-2 font-sans">
-            <Time iso={r.at} now={now} />
-            <div className="flex min-w-0 flex-1 gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+          <li key={r.entry.id} className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <Time iso={r.at} now={now} />
+              <span>· {msg('detail.ev.entry')}</span>
               <KindChip entry={r.entry} />
-              <span className="min-w-0 whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-100">{r.entry.text}</span>
             </div>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-100">{r.entry.text}</p>
           </li>
         ) : (
-        <TimelineRow key={`${r.at}-${i}`} t={r.item} now={now} />
+          <TimelineRow key={`${r.at}-${i}`} t={r.item} now={now} />
         ),
       )}
     </ol>
@@ -142,14 +145,25 @@ function Timeline({ items, entries, now }: { items: TimelineItem[]; entries: Ent
 }
 
 function TimelineRow({ t, now }: { t: TimelineItem; now: number }) {
+  const failed = t.tool?.failed || t.type === 'error';
+  // The label already says it: session start/end and a subagent ending carry nothing more; a subagent start shows its task
+  const body =
+    t.type === 'session_start' || t.type === 'session_end' || t.type === 'subagent_end' ? undefined : t.type === 'subagent_start' ? t.text : timelineText(t);
   return (
-    <li className="flex gap-2">
-      <Time iso={t.at} now={now} />
-      <span className="shrink-0">{TIMELINE_ICON[t.type] ?? '·'}</span>
-      <span className={`min-w-0 break-all ${t.tool?.failed || t.type === 'error' ? 'text-red-500' : 'text-zinc-700 dark:text-zinc-300'}`}>
-        {t.agentType && <span className="text-violet-500">[{t.agentType}] </span>}
-        {timelineText(t)}
-      </span>
+    <li>
+      <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+        <Time iso={t.at} now={now} />
+        <span>·</span>
+        <span className={`font-medium ${failed ? 'text-red-600 dark:text-red-400' : (EVENT_TONE[t.type] ?? '')}`}>
+          {t.tool?.failed ? msg('detail.ev.toolFailed') : eventLabel(t.type)}
+        </span>
+        {t.agentType && <span className="text-violet-500">[{t.agentType}]</span>}
+      </div>
+      {body && (
+        <p className={`mt-0.5 whitespace-pre-wrap break-words text-sm ${t.tool ? 'font-mono text-[0.8125rem]' : ''} ${failed ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+          {body}
+        </p>
+      )}
     </li>
   );
 }

@@ -147,7 +147,7 @@ export function EntryComposer({
         ))}
         {!compact && <span className="text-xs text-zinc-400">{t('entry.kindOptional')}</span>}
       </div>
-      <div className="mt-2.5 flex items-end gap-2">
+      <div className="mt-2.5 flex items-start gap-2">
         <label className="sr-only" htmlFor={`entry-${sessionKey ?? goalId ?? 'journal'}`}>
           {placeholder}
         </label>
