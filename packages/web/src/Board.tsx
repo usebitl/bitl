@@ -14,6 +14,10 @@ import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, PlusIcon
 import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
+import { applyTheme, setTheme, THEMES, useTheme } from './theme';
+
+// The chosen theme goes on <html> as soon as the board loads (index.css)
+applyTheme();
 import { ClearDialog } from './ClearDialog';
 
 const COLUMNS: { id: BoardColumn; dot: string }[] = [
@@ -248,12 +252,12 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 
   return (
     // When the side panel opens, the board shifts aside by the panel width and stays visible
-    <div className={`px-4 pb-10 sm:px-6 ${selected && mode === 'side' ? SIDE_PANEL_GUTTER : 'mx-auto max-w-[1600px]'}`}>
-      <header className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
+    <div className={`bitl-board px-4 pb-10 sm:px-6 ${selected && mode === 'side' ? SIDE_PANEL_GUTTER : 'mx-auto max-w-[1600px]'}`}>
+      <header className="bitl-header sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
         <h1 className="text-lg font-bold tracking-tight">
           <a href="/" className="flex items-center gap-2">
             <Logo size={24} />
-            BITL {badge} <span className="hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
+            BITL {badge} <span className="bitl-tagline hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
           </a>
         </h1>
         {attention > 0 && (
@@ -336,7 +340,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
         <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @5xl:grid-cols-4">
         {COLUMNS.map((col) => (
           <section key={col.id} className="min-w-0">
-            <h2 className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+            <h2 className="bitl-col-title mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
               <span className={`size-2.5 rounded-full ${col.dot}`} />
               {t(`app.col.${col.id}`)}
               <span className="font-normal text-zinc-400">{byColumn[col.id].length}</span>
@@ -356,7 +360,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
                 />
               ))}
               {byColumn[col.id].length === 0 && (
-                <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-sm text-zinc-400 dark:border-zinc-800">{activeGoal ? t('goal.emptyCol') : t(`app.col.${col.id}.empty`)}</p>
+                <p className="bitl-empty rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-sm text-zinc-400 dark:border-zinc-800">{activeGoal ? t('goal.emptyCol') : t(`app.col.${col.id}.empty`)}</p>
               )}
             </div>
           </section>
@@ -459,10 +463,34 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
               <span className="flex-1">{t('common.lang')}</span>
               <LangSwitch />
             </div>
+            <ThemeSwitch />
             {footer?.(close)}
           </div>
         </>
       )}
     </>
+  );
+}
+
+/** ☰ menu row: board theme (remembered in this browser) */
+function ThemeSwitch() {
+  const theme = useTheme();
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200">
+      <span className="flex-1">{t('theme.title')}</span>
+      <div className="flex rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700" role="group" aria-label={t('theme.title')}>
+        {THEMES.map((th) => (
+          <button
+            key={th}
+            type="button"
+            aria-pressed={theme === th}
+            onClick={() => setTheme(th)}
+            className={`rounded-md px-2 py-0.5 text-xs ${theme === th ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'}`}
+          >
+            {t(`theme.${th}`)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

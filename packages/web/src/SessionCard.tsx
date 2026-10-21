@@ -78,7 +78,7 @@ function StatusLine({ s, now }: { s: Session; now: number }) {
 }
 
 const BTN_PRIMARY =
-  'flex-1 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white';
+  'bitl-btn-primary flex-1 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white';
 const BTN_SECONDARY =
   'flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800';
 
@@ -174,8 +174,9 @@ export function SessionCard({
 
   return (
     <article
+      data-status={s.status}
       className={[
-        'group relative rounded-xl border bg-white p-3.5 shadow-sm transition hover:shadow-md dark:bg-zinc-900/70',
+        'bitl-card group relative rounded-xl border bg-white p-3.5 shadow-sm transition hover:shadow-md dark:bg-zinc-900/70',
         s.status === 'waiting_for_you' || s.status === 'error' ? 'border-red-300 dark:border-red-500/40' : 'border-zinc-200 dark:border-zinc-800',
         urgent ? 'pulse-ring' : '',
         s.status === 'ended' || s.status === 'stale' ? 'opacity-70' : '',
@@ -226,7 +227,7 @@ export function SessionCard({
         )}
         {s.note && <p className="mt-1.5 line-clamp-2 text-xs text-sky-700 dark:text-sky-400">📝 {s.note}</p>}
         {s.source !== 'manual' && (
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+          <div className="bitl-card-meta mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
             <span>{t('card.turns', { n: s.turnCount })}</span>
             <span>{t('card.tools', { n: s.toolCount })}</span>
             {s.subagentsRunning > 0 && <span className="text-violet-600 dark:text-violet-400">{t('card.subagents', { n: s.subagentsRunning })}</span>}

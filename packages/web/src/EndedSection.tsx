@@ -76,7 +76,7 @@ export function EndedSection({
   const n = sessions.length;
 
   return (
-    <section aria-label={t('ended.title')} className="mt-8 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+    <section aria-label={t('ended.title')} className="bitl-ended mt-8 border-t border-zinc-200 pt-4 dark:border-zinc-800">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <button
           type="button"

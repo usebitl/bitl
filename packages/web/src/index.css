@@ -56,3 +56,185 @@ button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
 }
+
+/* ── Board themes (theme.ts) ───────────────────────────────────────────────
+   A theme swaps Tailwind's color variables on <html data-theme="…">, so every zinc/emerald/red… utility follows,
+   then adds a few touches through hook classes (bitl-board, bitl-header, bitl-card, bitl-empty, bitl-card-meta …).
+   The fixed page color (#0b0d12, used as arbitrary values) is replaced through --bitl-bg. */
+html[data-theme],
+html[data-theme] body {
+  background: var(--bitl-bg);
+}
+html[data-theme] [class*='bg-[#0b0d12]'] {
+  background-color: var(--bitl-bg-glass);
+}
+
+/* Zen — like VS Code's Zen Mode: quiet grays, muted accents, less chrome, a narrower centered board */
+html[data-theme='zen'] {
+  --bitl-bg: #1a1a1a;
+  --bitl-bg-glass: rgb(26 26 26 / 0.94);
+  --color-zinc-50: #ececec;
+  --color-zinc-100: #e0e0e0;
+  --color-zinc-200: #cfcfcf;
+  --color-zinc-300: #b8b8b8;
+  --color-zinc-400: #8f8f8f;
+  --color-zinc-500: #727272;
+  --color-zinc-600: #575757;
+  --color-zinc-700: #3a3a3a;
+  --color-zinc-800: #2c2c2c;
+  --color-zinc-900: #222222;
+  --color-zinc-950: #1c1c1c;
+  --color-emerald-300: #a7c4b0;
+  --color-emerald-400: #8fb59a;
+  --color-emerald-500: #7aa386;
+  --color-emerald-600: #5f8a6c;
+  --color-amber-300: #d9c49a;
+  --color-amber-400: #c9ad76;
+  --color-amber-500: #b8995e;
+  --color-amber-600: #9c7f47;
+  --color-red-300: #d9a3a3;
+  --color-red-400: #c98585;
+  --color-red-500: #b86e6e;
+  --color-red-600: #9c5656;
+  --color-sky-300: #a8c0d6;
+  --color-sky-400: #8eaac4;
+  --color-sky-500: #7896b3;
+  --color-sky-600: #5f7d9a;
+  --color-violet-400: #a99cc4;
+  --color-violet-500: #9688b3;
+  --color-orange-300: #d4b49a;
+  --color-rose-300: #d4a3ad;
+}
+html[data-theme='zen'] .bitl-board {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+html[data-theme='zen'] .bitl-header {
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+}
+html[data-theme='zen'] :is(.bitl-tagline, .bitl-empty, .bitl-card-meta) {
+  display: none;
+}
+html[data-theme='zen'] .bitl-card {
+  border-color: transparent;
+  box-shadow: none;
+  background-color: #232323;
+}
+html[data-theme='zen'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  border-color: rgb(184 110 110 / 0.45);
+}
+html[data-theme='zen'] .bitl-col-title {
+  font-weight: 500;
+  color: var(--color-zinc-400);
+}
+html[data-theme='zen'] .bitl-ended {
+  border-top-color: transparent;
+  opacity: 0.6;
+}
+
+/* Cyberpunk — yellow-first, like the genre's signature neon yellow on black: yellow edges, titles and buttons;
+   cyan for work in progress, hot pink for what waits on you. Clipped corners and faint scanlines */
+html[data-theme='cyberpunk'] {
+  --bitl-bg: #0a0a08;
+  --bitl-bg-glass: rgb(10 10 8 / 0.9);
+  --bitl-yellow: #fcee0a;
+  --color-zinc-50: #fffde6;
+  --color-zinc-100: #f7f3d0;
+  --color-zinc-200: #e8e2b4;
+  --color-zinc-300: #d4cd9a;
+  --color-zinc-400: #a9a275;
+  --color-zinc-500: #827c58;
+  --color-zinc-600: #5f5a3f;
+  --color-zinc-700: #3d3a29;
+  --color-zinc-800: #29271c;
+  --color-zinc-900: #1a1912;
+  --color-zinc-950: #12110c;
+  --color-emerald-300: #8ffcff;
+  --color-emerald-400: #3df5ff;
+  --color-emerald-500: #00e5ff;
+  --color-emerald-600: #00b8d4;
+  --color-amber-300: #fff7a8;
+  --color-amber-400: #fcee0a;
+  --color-amber-500: #f5e100;
+  --color-amber-600: #d4c200;
+  --color-red-300: #ff9ec4;
+  --color-red-400: #ff5c9a;
+  --color-red-500: #ff2a6d;
+  --color-red-600: #e0105a;
+  --color-sky-300: #fff7a8;
+  --color-sky-400: #fcee0a;
+  --color-sky-500: #f5e100;
+  --color-sky-600: #d4c200;
+  --color-violet-400: #3df5ff;
+  --color-violet-500: #00e5ff;
+  --color-orange-300: #fcee0a;
+  --color-rose-300: #ff9ec4;
+}
+html[data-theme='cyberpunk'] .bitl-header {
+  border-bottom: 2px solid var(--bitl-yellow);
+  box-shadow: 0 6px 18px -12px var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'] .bitl-header h1 {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--bitl-yellow);
+  text-shadow: 0 0 10px rgb(252 238 10 / 0.6);
+}
+html[data-theme='cyberpunk'] .bitl-tagline {
+  color: rgb(252 238 10 / 0.6);
+}
+html[data-theme='cyberpunk'] .bitl-col-title {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--bitl-yellow);
+  text-shadow: 0 0 8px rgb(252 238 10 / 0.5);
+}
+html[data-theme='cyberpunk'] .bitl-card {
+  border-radius: 2px;
+  border-color: rgb(252 238 10 / 0.55);
+  background-color: rgb(26 25 18 / 0.85);
+  box-shadow: inset 0 0 18px -8px rgb(252 238 10 / 0.55);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+html[data-theme='cyberpunk'] .bitl-card[data-status='running'] {
+  border-color: rgb(0 229 255 / 0.6);
+  box-shadow: inset 0 0 18px -8px rgb(0 229 255 / 0.7);
+}
+html[data-theme='cyberpunk'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  border-color: rgb(255 42 109 / 0.8);
+  box-shadow: inset 0 0 22px -6px rgb(255 42 109 / 0.8);
+}
+html[data-theme='cyberpunk'] .bitl-card h3 {
+  text-shadow: 0 0 6px rgb(255 255 255 / 0.2);
+}
+html[data-theme='cyberpunk'] .bitl-btn-primary {
+  border-radius: 2px;
+  background-color: var(--bitl-yellow);
+  color: #0a0a08;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+html[data-theme='cyberpunk'] .bitl-btn-primary:hover {
+  background-color: #fff35a;
+  box-shadow: 0 0 14px -2px rgb(252 238 10 / 0.7);
+}
+html[data-theme='cyberpunk'] .bitl-empty {
+  border-radius: 2px;
+  border-color: rgb(252 238 10 / 0.3);
+  color: rgb(252 238 10 / 0.55);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+html[data-theme='cyberpunk'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px);
+}
