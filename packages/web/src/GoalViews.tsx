@@ -380,7 +380,7 @@ export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: str
         title={t('goal.cardMenu')}
         aria-label={t('goal.cardMenu')}
         aria-expanded={open}
-        className={`absolute right-8 top-2 rounded-md px-1.5 py-0.5 text-sm hover:bg-zinc-100 focus:opacity-100 dark:hover:bg-zinc-800 ${
+        className={`absolute right-8 top-3 rounded-md px-1.5 py-0.5 text-sm leading-5 hover:bg-zinc-100 focus:opacity-100 dark:hover:bg-zinc-800 ${
           inGoals.length ? 'text-sky-600 dark:text-sky-400' : 'text-zinc-400 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       >

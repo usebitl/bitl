@@ -180,7 +180,7 @@ html[data-theme='cyberpunk'] .bitl-header h1 {
   text-shadow: 0 0 10px rgb(252 238 10 / 0.6);
 }
 html[data-theme='cyberpunk'] .bitl-tagline {
-  color: rgb(252 238 10 / 0.6);
+  display: none;
 }
 html[data-theme='cyberpunk'] .bitl-col-title {
   font-family: var(--font-mono);

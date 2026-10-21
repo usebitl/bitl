@@ -8,7 +8,7 @@ import { SessionCard } from './SessionCard';
 import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
-import { BroomIcon, GlobeIcon, JournalIcon } from './Icons';
+import { BroomIcon, GlobeIcon, JournalIcon, PaletteIcon } from './Icons';
 import { EndedSection } from './EndedSection';
 import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, PlusIcon, useGoalsFollowResume } from './GoalViews';
 import { GoalJournal, Journal } from './JournalViews';
@@ -430,8 +430,9 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardProps['menu']> & { onJournal: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
+  // The menu hangs from the button itself — anchored to the header it dropped below notices like the update banner
   return (
-    <>
+    <div className="relative">
       <button
         type="button"
         aria-label={t('app.menu')}
@@ -445,7 +446,7 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={close} />
-          <div className="absolute right-3 top-full z-30 mt-1 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
+          <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -469,7 +470,7 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -478,6 +479,7 @@ function ThemeSwitch() {
   const theme = useTheme();
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200">
+      <PaletteIcon className={MENU_ICON} />
       <span className="flex-1">{t('theme.title')}</span>
       <div className="flex rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700" role="group" aria-label={t('theme.title')}>
         {THEMES.map((th) => (

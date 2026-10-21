@@ -45,6 +45,16 @@ export const CardIcon = (p: P) => (
   </Icon>
 );
 
+/** Palette — the board theme */
+export const PaletteIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" />
+    <circle cx="7.5" cy="11.5" r="1" />
+    <circle cx="10.5" cy="7.5" r="1" />
+    <circle cx="15" cy="8" r="1" />
+  </Icon>
+);
+
 /** Open book — the journal (notes left along the way) */
 export const JournalIcon = (p: P) => (
   <Icon {...p}>

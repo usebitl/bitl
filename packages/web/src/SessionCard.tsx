@@ -189,7 +189,7 @@ export function SessionCard({
         onClick={() => setConfirmDelete(true)}
         title={t('card.deleteTitle')}
         aria-label={t('card.deleteTitle')}
-        className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-100 hover:text-red-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 dark:hover:bg-zinc-800"
+        className="absolute right-2 top-3 rounded-md px-1.5 py-0.5 text-sm leading-5 text-zinc-400 hover:bg-zinc-100 hover:text-red-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 dark:hover:bg-zinc-800"
       >
         ✕
       </button>
@@ -206,7 +206,11 @@ export function SessionCard({
             {s.project ?? ''}
             {s.gitBranch && <span className="text-zinc-400 dark:text-zinc-500"> @{s.gitBranch}</span>}
           </span>
-          {s.pinned && <span title={t('card.pinned')}>📌</span>}
+          {s.pinned && (
+            <span title={t('card.pinned')} className="text-sm leading-5">
+              📌
+            </span>
+          )}
         </div>
         <h3 className="line-clamp-2 font-semibold leading-snug">{title}</h3>
         <div className="mt-1">
