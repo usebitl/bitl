@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
  * Board themes. The palette lives in index.css as overrides of Tailwind's color variables under
  * html[data-theme=…], plus a few layout touches on hook classes (bitl-card, bitl-empty …) — the components stay as they are.
  *   default   — the usual dark board
- *   zen       — like VS Code's Zen Mode: quiet grays, muted accents, less chrome, a narrower centered board
- *   cyberpunk — neon on violet-black: glowing card edges, clipped corners, scanlines
+ *   zen       — like VS Code's Zen Mode: quiet grays, muted accents, less chrome (same width as the default)
+ *   cyberpunk — neon yellow on black, cyan and hot pink accents: glowing card edges, clipped corners, scanlines
  * Remembered in this browser only.
  */
 export const THEMES = ['default', 'zen', 'cyberpunk'] as const;

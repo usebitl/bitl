@@ -268,6 +268,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
         )}
         {/* Only the essentials on one line (connection issues, goals); the rest goes in the ☰ menu — same layout on PC and phone. Remote approval being on is also shown inside the menu */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <CyberHud connection={connection} />
           {connIssue && (
             <span className="flex items-center gap-1.5 text-sm" title={connIssue === 'connecting' ? t('app.conn.connecting') : t('app.conn.down')}>
               <span className={`size-2 rounded-full ${connIssue === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`} />
@@ -492,5 +493,24 @@ function ThemeSwitch() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Cyberpunk only: a small HUD readout in the header — the link state and a ticking clock. Decorative (the real
+ * connection notice is shown separately), so screen readers skip it. Nothing renders in other themes
+ */
+function CyberHud({ connection }: { connection: Connection }) {
+  return useTheme() === 'cyberpunk' ? <HudReadout connection={connection} /> : null;
+}
+
+function HudReadout({ connection }: { connection: Connection }) {
+  const now = useNow(1000);
+  const clock = new Date(now).toLocaleTimeString('en-GB', { hour12: false });
+  const state = connection === 'live' ? 'SYS://ONLINE' : connection === 'connecting' ? 'SYS://SYNC…' : 'SIGNAL LOST';
+  return (
+    <span aria-hidden="true" className={`bitl-hud hidden font-mono text-xs tracking-widest md:inline ${connection === 'offline' ? 'bitl-hud-lost' : ''}`}>
+      {state} <span className="bitl-hud-clock">{clock}</span>
+    </span>
   );
 }

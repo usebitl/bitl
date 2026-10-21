@@ -69,7 +69,7 @@ html[data-theme] [class*='bg-[#0b0d12]'] {
   background-color: var(--bitl-bg-glass);
 }
 
-/* Zen — like VS Code's Zen Mode: quiet grays, muted accents, less chrome, a narrower centered board */
+/* Zen — like VS Code's Zen Mode: quiet grays, muted accents, less chrome (same width as the default) */
 html[data-theme='zen'] {
   --bitl-bg: #1a1a1a;
   --bitl-bg-glass: rgb(26 26 26 / 0.94);
@@ -104,10 +104,6 @@ html[data-theme='zen'] {
   --color-violet-500: #9688b3;
   --color-orange-300: #d4b49a;
   --color-rose-300: #d4a3ad;
-}
-html[data-theme='zen'] .bitl-board {
-  max-width: 1180px;
-  margin-inline: auto;
 }
 html[data-theme='zen'] .bitl-header {
   border-bottom-color: transparent;
@@ -150,14 +146,16 @@ html[data-theme='cyberpunk'] {
   --color-zinc-800: #29271c;
   --color-zinc-900: #1a1912;
   --color-zinc-950: #12110c;
-  --color-emerald-300: #8ffcff;
-  --color-emerald-400: #3df5ff;
-  --color-emerald-500: #00e5ff;
-  --color-emerald-600: #00b8d4;
-  --color-amber-300: #fff7a8;
-  --color-amber-400: #fcee0a;
-  --color-amber-500: #f5e100;
-  --color-amber-600: #d4c200;
+  /* Running (emerald) is yellow and needs-review (amber) is cyan here — text, column dots and goal bars follow,
+     matching the card edges below */
+  --color-emerald-300: #fff7a8;
+  --color-emerald-400: #fcee0a;
+  --color-emerald-500: #f5e100;
+  --color-emerald-600: #d4c200;
+  --color-amber-300: #8ffcff;
+  --color-amber-400: #3df5ff;
+  --color-amber-500: #00e5ff;
+  --color-amber-600: #00b8d4;
   --color-red-300: #ff9ec4;
   --color-red-400: #ff5c9a;
   --color-red-500: #ff2a6d;
@@ -198,7 +196,7 @@ html[data-theme='cyberpunk'] .bitl-card {
   box-shadow: inset 0 0 18px -8px rgb(252 238 10 / 0.55);
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
 }
-html[data-theme='cyberpunk'] .bitl-card[data-status='running'] {
+html[data-theme='cyberpunk'] .bitl-card[data-status='needs_review'] {
   border-color: rgb(0 229 255 / 0.6);
   box-shadow: inset 0 0 18px -8px rgb(0 229 255 / 0.7);
 }
@@ -237,4 +235,68 @@ html[data-theme='cyberpunk'] body::after {
   z-index: 60;
   pointer-events: none;
   background: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px);
+}
+
+/* Cyberpunk: header HUD (Board CyberHud) */
+html[data-theme='cyberpunk'] .bitl-hud {
+  color: rgb(252 238 10 / 0.75);
+  text-shadow: 0 0 6px rgb(252 238 10 / 0.45);
+}
+html[data-theme='cyberpunk'] .bitl-hud-clock {
+  color: rgb(0 229 255 / 0.8);
+}
+html[data-theme='cyberpunk'] .bitl-hud-lost {
+  color: #ff2a6d;
+  text-shadow: 0 0 8px rgb(255 42 109 / 0.7);
+  animation: bitl-blink 1s steps(2, start) infinite;
+}
+@keyframes bitl-blink {
+  to { visibility: hidden; }
+}
+
+/* Cyberpunk: a card that starts waiting on you glitches its title once, then twitches briefly every few seconds */
+@keyframes bitl-glitch {
+  0% { text-shadow: 2px 0 #ff2a6d, -2px 0 #00e5ff; transform: translate(0); }
+  20% { text-shadow: -3px 0 #ff2a6d, 3px 0 #00e5ff; transform: translate(-2px, 1px) skewX(-8deg); }
+  40% { text-shadow: 3px 1px #ff2a6d, -3px -1px #00e5ff; transform: translate(2px, -1px); clip-path: inset(15% 0 35% 0); }
+  60% { text-shadow: -2px 0 #ff2a6d, 2px 0 #00e5ff; transform: translate(-1px, 0) skewX(6deg); clip-path: none; }
+  80% { text-shadow: 1px 0 #ff2a6d, -1px 0 #00e5ff; transform: translate(1px, 0); }
+  100% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+}
+@keyframes bitl-glitch-idle {
+  0%, 94% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+  95% { text-shadow: -3px 0 #ff2a6d, 3px 0 #00e5ff; transform: translate(-2px, 0) skewX(-6deg); }
+  97% { text-shadow: 3px 0 #ff2a6d, -3px 0 #00e5ff; transform: translate(2px, 0); }
+  100% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+}
+html[data-theme='cyberpunk'] .bitl-card[data-status='waiting_for_you'] h3 {
+  animation: bitl-glitch 0.45s linear 1, bitl-glitch-idle 7s linear 1s infinite;
+}
+
+/* Cyberpunk: a light runs around the edge of a running card */
+@property --bitl-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes bitl-orbit {
+  to { --bitl-angle: 360deg; }
+}
+html[data-theme='cyberpunk'] .bitl-card[data-status='running']::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(252 238 10 / 0.25) 80%, #fcee0a 88%, transparent 96%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: bitl-orbit 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost) {
+    animation: none;
+  }
 }
