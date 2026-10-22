@@ -330,7 +330,7 @@ export const en: Record<MessageKey, string> = {
   'card.manualWaiting': "Waiting",
   'card.manualResume': "Resume",
   'card.manualDone': "Done",
-  'card.ack': "Got it",
+  'card.ack': "Move to Idle",
   'card.deleteConfirm': "Delete this card and its history?",
   'card.delete': "Delete",
   'card.cancel': "Cancel",

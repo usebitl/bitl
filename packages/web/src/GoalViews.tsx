@@ -2,6 +2,7 @@ import { type BoardColumn, columnOf, displayTitle, type Session } from '@bitl/sh
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { changeGoal, createGoal, deleteGoal, type Goal, setGoalClosed, toggleMember } from './goals';
 import { SOURCE_LABEL } from './format';
+import { GoalAddIcon } from './Icons';
 import { rich, t, titleLabels } from './i18n';
 
 /**
@@ -107,10 +108,11 @@ export function GoalsBar({
       <button
         type="button"
         onClick={onCreate}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-zinc-300 px-4 text-sm text-zinc-500 hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-900"
+        title={t('goal.addLong')}
+        aria-label={t('goal.addLong')}
+        className="inline-flex w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-zinc-500 hover:bg-white hover:text-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
       >
-        <PlusIcon />
-        {t('goal.addLong')}
+        <GoalAddIcon className="size-6" />
       </button>
     </div>
   );

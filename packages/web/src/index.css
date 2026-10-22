@@ -220,6 +220,11 @@ html[data-theme='cyberpunk'] .bitl-btn-primary:hover {
   background-color: #fff35a;
   box-shadow: 0 0 14px -2px rgb(252 238 10 / 0.7);
 }
+html[data-theme='cyberpunk'] .bitl-ack:hover {
+  background-color: transparent;
+  color: var(--bitl-yellow);
+  text-shadow: 0 0 8px rgb(252 238 10 / 0.6);
+}
 html[data-theme='cyberpunk'] .bitl-empty {
   border-radius: 2px;
   border-color: rgb(252 238 10 / 0.3);
@@ -273,7 +278,7 @@ html[data-theme='cyberpunk'] .bitl-card[data-status='waiting_for_you'] h3 {
   animation: bitl-glitch 0.45s linear 1, bitl-glitch-idle 7s linear 1s infinite;
 }
 
-/* Cyberpunk: a light runs around the edge of a running card */
+/* Default and Cyberpunk: a light runs around the edge of a running card (in the theme's running color) */
 @property --bitl-angle {
   syntax: '<angle>';
   initial-value: 0deg;
@@ -282,20 +287,25 @@ html[data-theme='cyberpunk'] .bitl-card[data-status='waiting_for_you'] h3 {
 @keyframes bitl-orbit {
   to { --bitl-angle: 360deg; }
 }
-html[data-theme='cyberpunk'] .bitl-card[data-status='running']::before {
+html:is(:not([data-theme]), [data-theme='cyberpunk']) .bitl-card[data-status='running']::before {
   content: '';
   position: absolute;
   inset: -1px;
   padding: 2px;
+  border-radius: inherit;
   pointer-events: none;
-  background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(252 238 10 / 0.25) 80%, #fcee0a 88%, transparent 96%);
+  background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(16 185 129 / 0.25) 80%, #10b981 88%, transparent 96%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   animation: bitl-orbit 3s linear infinite;
 }
+html[data-theme='cyberpunk'] .bitl-card[data-status='running']::before {
+  background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(252 238 10 / 0.25) 80%, #fcee0a 88%, transparent 96%);
+}
 
 @media (prefers-reduced-motion: reduce) {
+  html:not([data-theme]) .bitl-card::before,
   html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost) {
     animation: none;
   }

@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalizeHook } from '../src/normalize.js';
-import { findResumedFrom, resumedFromFor } from '../src/node/resume.js';
+import { findContinuedFrom, findResumedFrom, resumedFromFor } from '../src/node/resume.js';
 import { splitEvent } from '../src/prepare.js';
 
 const SID = {
@@ -66,6 +66,26 @@ describe('resumedFromFor', () => {
     // From then on every event answers from the cache
     expect(await resumedFromFor(hook('PreToolUse', at(SID.b), { tool_name: 'Bash', tool_input: {} }), home)).toBe(SID.a);
     expect(JSON.parse(readFileSync(join(home, 'resume-links.json'), 'utf8'))[SID.b]).toMatchObject({ from: SID.a });
+  });
+
+  it('a session Claude Code carried on by itself (no resumed SessionStart) is found at its first prompt from the continued-in line', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'bitl-home-'));
+    const at = project({ [SID.a]: [1, 2], [SID.b]: [1, 2, 3], [SID.c]: [9] });
+    appendFileSync(at(SID.a), JSON.stringify({ type: 'continued-in', sessionId: SID.a, continuedInSessionId: SID.b }) + '\n');
+    expect(await findContinuedFrom(at(SID.b))).toBe(SID.a);
+    expect(await findContinuedFrom(at(SID.c))).toBeNull();
+    // Tool calls never look; the first prompt does, and the answer is cached
+    expect(await resumedFromFor(hook('PreToolUse', at(SID.b), { tool_name: 'Bash', tool_input: {} }), home)).toBeUndefined();
+    expect(await resumedFromFor(hook('UserPromptSubmit', at(SID.b), { prompt: 'x' }), home)).toBe(SID.a);
+    expect(JSON.parse(readFileSync(join(home, 'resume-links.json'), 'utf8'))[SID.b]).toMatchObject({ from: SID.a });
+  });
+
+  it('still finds the continued-in line after the earlier session was reopened and wrote more', async () => {
+    const at = project({ [SID.a]: [1, 2], [SID.b]: [1, 2, 3] });
+    appendFileSync(at(SID.a), JSON.stringify({ type: 'continued-in', sessionId: SID.a, continuedInSessionId: SID.b }) + '\n');
+    const more = Array.from({ length: 400 }, (_, i) => JSON.stringify({ uuid: msg(100 + i), text: 'x'.repeat(400) })).join('\n');
+    appendFileSync(at(SID.a), more + '\n');
+    expect(await findContinuedFrom(at(SID.b))).toBe(SID.a);
   });
 
   it('goes into the signal, never the sealed content', () => {

@@ -8,9 +8,9 @@ import { SessionCard } from './SessionCard';
 import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
-import { BroomIcon, GlobeIcon, JournalIcon, PaletteIcon } from './Icons';
+import { BroomIcon, GlobeIcon, GoalAddIcon, JournalIcon, PaletteIcon } from './Icons';
 import { EndedSection } from './EndedSection';
-import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, PlusIcon, useGoalsFollowResume } from './GoalViews';
+import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, useGoalsFollowResume } from './GoalViews';
 import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
@@ -281,11 +281,11 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
             type="button"
             disabled={!canEdit}
             title={keys ? t('goal.addLong') : t('app.needKey')}
+            aria-label={t('goal.addLong')}
             onClick={() => setGoalDialog({})}
-            className="flex h-8 items-center justify-center gap-1 rounded-lg border border-zinc-300 px-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            className="flex size-8 items-center justify-center rounded-lg border border-zinc-300 text-zinc-800 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
-            <PlusIcon />
-            {t('goal.add')}
+            <GoalAddIcon />
           </button>
           <button
             type="button"
@@ -446,7 +446,7 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={close} />
-          <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
+          <div className="absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -480,8 +480,8 @@ function ThemeSwitch() {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200">
       <PaletteIcon className={MENU_ICON} />
-      <span className="flex-1">{t('theme.title')}</span>
-      <div className="flex rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700" role="group" aria-label={t('theme.title')}>
+      <span className="flex-1 whitespace-nowrap">{t('theme.title')}</span>
+      <div className="flex shrink-0 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700" role="group" aria-label={t('theme.title')}>
         {THEMES.map((th) => (
           <button
             key={th}

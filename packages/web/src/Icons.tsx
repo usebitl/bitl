@@ -45,6 +45,16 @@ export const CardIcon = (p: P) => (
   </Icon>
 );
 
+/** Target with a small plus — "New goal" (the same target the cards use for goals) */
+export const GoalAddIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="11" cy="12" r="8" />
+    <circle cx="11" cy="12" r="4.2" />
+    <circle cx="11" cy="12" r="1" fill="currentColor" />
+    <path d="M19 3.5v5M16.5 6h5" />
+  </Icon>
+);
+
 /** Palette — the board theme */
 export const PaletteIcon = (p: P) => (
   <Icon {...p}>

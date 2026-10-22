@@ -348,7 +348,7 @@ export const ko = {
   'card.manualWaiting': "기다리는 중",
   'card.manualResume': "다시 진행",
   'card.manualDone': "완료",
-  'card.ack': "확인",
+  'card.ack': "대기로 이동",
   'card.deleteConfirm': "이 카드 기록을 삭제할까요?",
   'card.delete': "삭제",
   'card.cancel': "취소",

@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { open, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { AgentEvent } from '../events.js';
 
@@ -7,8 +7,9 @@ import type { AgentEvent } from '../events.js';
  * messages keep their ids. Find the session it continues: the transcript in the same project folder that holds the
  * newest copied message, preferring the one where that message is its last (a fork of the same session holds it too).
  *
- * Only resumed sessions are looked at (SessionStart source "resume"), the answer is cached in BITL_HOME, and later
- * events read the cache — so ordinary sessions and tool calls never scan transcripts. Plaintext never leaves the PC:
+ * Only resumed sessions are scanned (SessionStart source "resume"); other sessions get one cheap look at the end of
+ * recent transcripts at their first prompt (findContinuedFrom). The answer is cached in BITL_HOME and later events
+ * read the cache — so tool calls never scan transcripts. Plaintext never leaves the PC:
  * only the earlier session's id is sent.
  */
 
@@ -59,6 +60,49 @@ export async function findResumedFrom(transcriptPath: string): Promise<string | 
   return null;
 }
 
+const CONTINUED_TAIL_BYTES = 1024 * 1024;
+const CONTINUED_CANDIDATES = 20;
+
+/**
+ * Claude Code may also carry a conversation into a new session on its own (no SessionStart "resume" — e.g. when the
+ * app reconnects). It then writes a `continued-in` line naming the new session into the earlier transcript. Look for
+ * it near the end of the transcripts written since this session began — the earlier one may have been reopened and
+ * written to after that line, so the window is generous, but there are no full reads.
+ */
+export async function findContinuedFrom(transcriptPath: string): Promise<string | null> {
+  const own = basename(transcriptPath, '.jsonl');
+  const dir = dirname(transcriptPath);
+  const needle = `"continuedInSessionId":"${own}"`;
+  // The line is written when this session starts, so the earlier transcript was modified at or after that
+  const born = (await stat(transcriptPath)).birthtimeMs || 0;
+  const files: { name: string; size: number; mtime: number }[] = [];
+  for (const name of (await readdir(dir)).filter((n) => n.endsWith('.jsonl') && basename(n, '.jsonl') !== own)) {
+    try {
+      const info = await stat(join(dir, name));
+      if (info.mtimeMs >= born - 60_000) files.push({ name, size: info.size, mtime: info.mtimeMs });
+    } catch {
+      // removed meanwhile
+    }
+  }
+  files.sort((a, b) => b.mtime - a.mtime);
+  for (const f of files.slice(0, CONTINUED_CANDIDATES)) {
+    try {
+      const file = await open(join(dir, f.name), 'r');
+      try {
+        const len = Math.min(f.size, CONTINUED_TAIL_BYTES);
+        const buf = Buffer.alloc(len);
+        await file.read(buf, 0, len, f.size - len);
+        if (buf.toString('utf8').includes(needle)) return basename(f.name, '.jsonl');
+      } finally {
+        await file.close();
+      }
+    } catch {
+      // removed or unreadable meanwhile
+    }
+  }
+  return null;
+}
+
 /** pending: resumed, but the transcript had no messages yet — looked up again at the next prompt */
 type Cache = Record<string, { from?: string; pending?: true; at: string }>;
 
@@ -72,7 +116,8 @@ async function readCache(home: string): Promise<Cache> {
 
 /**
  * For Claude Code events: the earlier session id, if this session continues one. Looks it up once at a resumed
- * SessionStart (if the transcript has no messages yet, again at the next prompt), then answers from the cache.
+ * SessionStart (if the transcript has no messages yet, again at the next prompt), or — for a session not seen
+ * before — at its first prompt from an earlier transcript's `continued-in` line. Then answers from the cache.
  */
 export async function resumedFromFor(e: AgentEvent, home: string): Promise<string | undefined> {
   if (e.source !== 'claude-code' || !e.transcriptPath) return undefined;
@@ -80,8 +125,11 @@ export async function resumedFromFor(e: AgentEvent, home: string): Promise<strin
   const hit = cache[e.sessionId];
   if (hit && !hit.pending) return hit.from;
   const resumed = e.nativeType === 'SessionStart' && e.raw.source === 'resume';
-  if (!resumed && !(hit?.pending && e.type === 'prompt')) return undefined;
-  const found = await findResumedFrom(e.transcriptPath).catch(() => null);
+  const retry = hit?.pending && e.type === 'prompt';
+  const firstPrompt = !hit && e.type === 'prompt';
+  if (!resumed && !retry && !firstPrompt) return undefined;
+  const found =
+    resumed || retry ? await findResumedFrom(e.transcriptPath).catch(() => null) : await findContinuedFrom(e.transcriptPath).catch(() => null);
   // Cache the answer (and "not one") so later events don't scan again
   cache[e.sessionId] = found === undefined ? { pending: true, at: e.at } : { ...(found ? { from: found } : {}), at: e.at };
   const kept = Object.entries(cache)

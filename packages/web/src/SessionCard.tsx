@@ -82,11 +82,28 @@ const BTN_PRIMARY =
 const BTN_SECONDARY =
   'flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800';
 
-/** Card footer buttons. Agent sessions only get "Acknowledge"; manual tasks have their status changed by hand */
+const canAck = (s: Session) => s.status === 'needs_review' || s.status === 'error' || s.status === 'stale';
+
+/**
+ * "Acknowledge" (moves the card to Idle) — rarely needed (a new prompt moves the card anyway), so small ghost text
+ * at the end of the meta row instead of a full-width primary button
+ */
+function AckButton({ s }: { s: Session }) {
+  return (
+    <button
+      type="button"
+      onClick={() => postAction(s.key, 'ack')}
+      className="bitl-ack ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+    >
+      {t('card.ack')}
+    </button>
+  );
+}
+
+/** Card footer buttons for manual tasks, whose status is changed by hand (agent sessions only get the small "Acknowledge") */
 function Actions({ s }: { s: Session }) {
-  const canAck = s.status === 'needs_review' || s.status === 'error' || s.status === 'stale';
   const manualOpen = s.source === 'manual' && (s.status === 'running' || s.status === 'waiting_for_you');
-  if (!canAck && !manualOpen) return null;
+  if (!manualOpen) return s.source === 'manual' && canAck(s) ? <div className="mt-2 flex"><AckButton s={s} /></div> : null;
 
   return (
     <div className="mt-3 flex gap-2">
@@ -100,16 +117,9 @@ function Actions({ s }: { s: Session }) {
             {t('card.manualResume')}
           </button>
         ))}
-      {manualOpen && (
-        <button type="button" className={BTN_PRIMARY} onClick={() => reportManual(s.sessionId, 'end')}>
-          {t('card.manualDone')}
-        </button>
-      )}
-      {canAck && (
-        <button type="button" className={BTN_PRIMARY} onClick={() => postAction(s.key, 'ack')}>
-          {t('card.ack')}
-        </button>
-      )}
+      <button type="button" className={BTN_PRIMARY} onClick={() => reportManual(s.sessionId, 'end')}>
+        {t('card.manualDone')}
+      </button>
     </div>
   );
 }
@@ -230,14 +240,22 @@ export function SessionCard({
           </p>
         )}
         {s.note && <p className="mt-1.5 line-clamp-2 text-xs text-sky-700 dark:text-sky-400">📝 {s.note}</p>}
-        {s.source !== 'manual' && (
-          <div className="bitl-card-meta mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+      </button>
+      {/* Meta row with the ack button at its end. The meta part may be hidden by a theme (Zen); the button stays */}
+      {s.source !== 'manual' && (
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="bitl-card-meta flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-left text-xs text-zinc-500"
+          >
             <span>{t('card.turns', { n: s.turnCount })}</span>
             <span>{t('card.tools', { n: s.toolCount })}</span>
             {s.subagentsRunning > 0 && <span className="text-violet-600 dark:text-violet-400">{t('card.subagents', { n: s.subagentsRunning })}</span>}
-          </div>
-        )}
-      </button>
+          </button>
+          {canAck(s) && !confirmDelete && <AckButton s={s} />}
+        </div>
+      )}
       {goals && <GoalBadges sessionKey={s.key} goals={goals} />}
       {approval && <ApprovalBox approval={approval} keys={keys} now={now} />}
       {confirmDelete ? <DeleteConfirm s={s} onCancel={() => setConfirmDelete(false)} /> : <Actions s={s} />}
