@@ -169,9 +169,10 @@ html[data-theme='cyberpunk'] {
   --color-orange-300: #fcee0a;
   --color-rose-300: #ff9ec4;
 }
+/* A thin cyan line (the HUD clock's color), so it doesn't pile on the yellow of the header text */
 html[data-theme='cyberpunk'] .bitl-header {
-  border-bottom: 2px solid var(--bitl-yellow);
-  box-shadow: 0 6px 18px -12px var(--bitl-yellow);
+  border-bottom: 1px solid rgb(0 229 255 / 0.4);
+  box-shadow: 0 6px 14px -12px rgb(0 229 255 / 0.6);
 }
 html[data-theme='cyberpunk'] .bitl-header h1 {
   font-family: var(--font-mono);
