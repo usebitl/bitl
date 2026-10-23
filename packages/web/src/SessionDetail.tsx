@@ -4,7 +4,7 @@ import { t, titleLabels } from './i18n';
 import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type TimelineItem, type Turn } from '@bitl/shared/session';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
 import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
@@ -56,24 +56,38 @@ function Time({ iso, now }: { iso: string; now: number }) {
   );
 }
 
+/** Markdown renderer, loaded on first use so the board's first load doesn't carry it */
+const Markdown = lazy(() => import('./Markdown'));
+
 /**
- * Agent response. Long ones are collapsed to 12 lines and expanded with "Show all".
+ * Agent response, rendered as Markdown (agents answer in it). Long ones are collapsed to about 12 lines and expanded with "Show all".
  * The PC adapter truncates at 10,000 characters (shared/prepare.ts TEXT_LIMIT), so responses hitting that limit are marked as truncated
  */
 function ResultText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
-    if (el && !open) setOverflows(el.scrollHeight > el.clientHeight + 2);
+    if (!el || open) return;
+    // The Markdown chunk may still be loading — measure again whenever the content's size changes
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 2);
+    measure();
+    const ro = new ResizeObserver(measure);
+    for (const child of el.children) ro.observe(child);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [text, open]);
   const clipped = text.length >= TEXT_LIMIT - 1 && text.endsWith('…');
   return (
     <div className="mt-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-700">
-      <p ref={ref} className={`whitespace-pre-wrap break-words text-sm text-zinc-600 dark:text-zinc-400 ${open ? '' : 'line-clamp-[12]'}`}>
-        {text}
-      </p>
+      <div ref={ref} className={`break-words text-sm text-zinc-600 dark:text-zinc-400 ${open ? '' : 'max-h-[15rem] overflow-hidden'}`}>
+        <div>
+          <Suspense fallback={<p className="whitespace-pre-wrap">{text}</p>}>
+            <Markdown text={text} />
+          </Suspense>
+        </div>
+      </div>
       {open && clipped && <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">{t('detail.clipped', { n: TEXT_LIMIT.toLocaleString() })}</p>}
       {(overflows || open) && (
         <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">
