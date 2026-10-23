@@ -380,12 +380,12 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
 
   if (wide) {
     return (
-      <div className="fixed inset-0 z-30 flex items-center justify-center sm:p-6">
+      <div className="bitl-below-titlebar fixed inset-0 z-30 flex items-center justify-center sm:p-6">
         <button type="button" aria-label={msg('detail.close')} onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
         {panel}
       </div>
     );
   }
   // side: doesn't block the background — the board stays visible and clickable (full screen on mobile)
-  return <div className="fixed inset-y-0 right-0 z-30 flex w-full sm:w-auto">{panel}</div>;
+  return <div className="bitl-below-titlebar fixed inset-y-0 right-0 z-30 flex w-full sm:w-auto">{panel}</div>;
 }

@@ -42,18 +42,24 @@ interface BeforeInstallPromptEvent extends Event {
 let deferred: BeforeInstallPromptEvent | null = null;
 const installListeners = new Set<() => void>();
 const emitInstall = () => installListeners.forEach((fn) => fn());
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault(); // use our "Install app" button instead of the browser's default banner
-  deferred = e as BeforeInstallPromptEvent;
-  emitInstall();
-});
-window.addEventListener('appinstalled', () => {
-  deferred = null;
-  emitInstall();
-});
+// Guarded: site pages that show install steps are also pre-rendered at build time, where there is no window
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // use our "Install app" button instead of the browser's default banner
+    deferred = e as BeforeInstallPromptEvent;
+    emitInstall();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferred = null;
+    emitInstall();
+  });
+}
 
+/** Running as the installed app — on desktop Chrome/Edge that may be the window-controls-overlay mode (the board's header in the title bar) */
 export const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** iPhone/iPad (iPadOS reports as Mac, so detect by touch) */
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -66,6 +72,7 @@ export function useInstallPrompt(): (() => Promise<void>) | null {
       return () => installListeners.delete(fn);
     },
     () => deferred !== null,
+    () => false,
   );
   if (!can) return null;
   return async () => {

@@ -213,6 +213,8 @@ async function main(argv: string[]) {
       const { startServer } = await import('@bitl/server');
       await startServer();
       console.log(t('start.pair', { url: localPairUrl() }));
+      // One line about the hosted edition, for people who haven't signed in to it on this PC
+      if (!readCloudConfig()) console.log(t('start.cloud'));
       return;
     }
     case 'install':

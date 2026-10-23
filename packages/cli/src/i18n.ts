@@ -61,6 +61,7 @@ const ko = {
   'install.backup': '  백업: {path}',
 
   'start.pair': '  브라우저 연결(처음 한 번): {url}',
+  'start.cloud': '\n  휴대폰 알림과 여러 PC를 한곳에서 보려면 BITL 클라우드: https://usebitl.com (내용은 종단간 암호화)',
 
   'login.unreachable': '서버에 연결할 수 없습니다 ({where}).',
   'login.unreachableHint': '  서버가 켜져 있는지 확인하세요 — 브라우저로 {origin}/api/health 를 열면 {"ok":true} 가 보여야 합니다.',
@@ -144,6 +145,7 @@ const en: Record<MessageKey, string> = {
   'install.backup': '  Backup: {path}',
 
   'start.pair': '  Connect a browser (first time only): {url}',
+  'start.cloud': '\n  Phone notifications and all your PCs in one place: BITL cloud at https://usebitl.com (end-to-end encrypted)',
 
   'login.unreachable': "Can't reach the server ({where}).",
   'login.unreachableHint': '  Check that the server is running — opening {origin}/api/health in a browser should show {"ok":true}.',

@@ -252,7 +252,10 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 
   return (
     // When the side panel opens, the board shifts aside by the panel width and stays visible
-    <div className={`bitl-board px-4 pb-10 sm:px-6 ${selected && mode === 'side' ? SIDE_PANEL_GUTTER : 'mx-auto max-w-[1600px]'}`}>
+    <div
+      data-side={selected && mode === 'side' ? '' : undefined}
+      className={`bitl-board px-4 pb-10 sm:px-6 ${selected && mode === 'side' ? SIDE_PANEL_GUTTER : 'mx-auto max-w-[1600px]'}`}
+    >
       <header className="bitl-header sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
         <h1 className="text-lg font-bold tracking-tight">
           <a href="/" className="flex items-center gap-2">

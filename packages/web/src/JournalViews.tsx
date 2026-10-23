@@ -147,7 +147,7 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
   );
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-zinc-50 dark:bg-[#0b0d12]" role="dialog" aria-modal="true" aria-labelledby="journal-title">
+    <div className="bitl-below-titlebar fixed inset-0 z-40 overflow-y-auto bg-zinc-50 dark:bg-[#0b0d12]" role="dialog" aria-modal="true" aria-labelledby="journal-title">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
         <button type="button" onClick={onClose} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
           <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
