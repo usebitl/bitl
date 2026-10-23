@@ -430,9 +430,24 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
 function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardProps['menu']> & { onJournal: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
+  const root = useRef<HTMLDivElement>(null);
+  // A press anywhere outside closes it. Not a fixed backdrop: the header's backdrop-blur would confine it to the header
+  useEffect(() => {
+    if (!open) return;
+    const onPress = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    document.addEventListener('pointerdown', onPress);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPress);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, close]);
   // The menu hangs from the button itself — anchored to the header it dropped below notices like the update banner
   return (
-    <div className="relative">
+    <div ref={root} className="relative">
       <button
         type="button"
         aria-label={t('app.menu')}
@@ -445,7 +460,6 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-20" onClick={close} />
           <div className="absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="menu">
             <button
               type="button"

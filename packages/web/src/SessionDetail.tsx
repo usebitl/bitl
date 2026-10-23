@@ -5,11 +5,11 @@ import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type TimelineItem, type Turn } from '@bitl/shared/session';
 import { useEffect, useRef, useState } from 'react';
-import { fetchDetail, patchSession, postAction, type SessionDetail as Detail } from './api';
+import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
 import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
 import { type Entry, writeEntry } from './entries';
-import { EntryComposer, EntryList, KindChip, useEntries } from './EntryViews';
+import { EntryComposer, EntryList, useEntries } from './EntryViews';
 
 /**
  * Detail view modes
@@ -132,7 +132,6 @@ function Timeline({ items, entries, now }: { items: TimelineItem[]; entries: Ent
             <div className="flex items-center gap-2 text-xs text-zinc-500">
               <Time iso={r.at} now={now} />
               <span>· {msg('detail.ev.entry')}</span>
-              <KindChip entry={r.entry} />
             </div>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-100">{r.entry.text}</p>
           </li>
@@ -352,13 +351,6 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
           </div>
         ) : (
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => postAction(session.key, session.archived ? 'unarchive' : 'archive').then(onClose)}
-              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-            >
-              {session.archived ? msg('detail.unarchive') : msg('detail.archive')}
-            </button>
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}

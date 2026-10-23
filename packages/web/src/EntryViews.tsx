@@ -1,35 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteEntry, type Entry, ENTRY_KINDS, ENTRY_LIMIT, type EntryContent, type EntryKind, type EntryWhere, fetchEntries, onEntry, rewriteEntry, writeEntry } from './entries';
+import { deleteEntry, type Entry, ENTRY_LIMIT, type EntryContent, type EntryWhere, fetchEntries, onEntry, rewriteEntry, writeEntry } from './entries';
 import type { Goal } from './goals';
 import { getLang, t } from './i18n';
 
 /**
  * Entry pieces shared by the card detail ("Notes" tab), the goal view and the journal:
- * the composer (kind + one or two lines), the list grouped by day, and the hook that loads entries and keeps them live.
+ * the one-line composer, the log grouped by day, and the hook that loads entries and keeps them live.
  */
-
-const KIND_STYLE: Record<EntryKind | 'none', string> = {
-  solved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
-  learned: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
-  flow: 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300',
-  none: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700/60 dark:text-zinc-300',
-};
-const KIND_RING: Record<EntryKind, string> = {
-  solved: 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
-  learned: 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
-  flow: 'border-rose-500 bg-rose-50 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300',
-};
-
-export const kindLabel = (kind: EntryKind | undefined) => (kind ? t(`entry.kind.${kind}`) : t('entry.kind.none'));
-
-export function KindChip({ entry }: { entry: Pick<Entry, 'kind' | 'fromNote'> }) {
-  const style = KIND_STYLE[entry.kind ?? 'none'];
-  return (
-    <span className={`inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-xs font-medium ${style}`}>
-      {entry.kind ? kindLabel(entry.kind) : entry.fromNote ? t('entry.fromNote') : kindLabel(undefined)}
-    </span>
-  );
-}
 
 const sortNewest = (list: Entry[]) => [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 
@@ -86,38 +63,44 @@ export function useEntries(query: { session?: string; since?: string }, keep: (e
   return { entries: entries.filter((e) => keepRef.current(e)), loading, more, loadMore };
 }
 
-/** Kind buttons + one or two lines. Enter writes, Shift+Enter breaks the line. Kind is optional */
+/** Grows the textarea with its text. Empty, or measured while its tab is hidden (scrollHeight 0), it keeps its one-row height */
+function fitHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = '';
+  if (el.value && el.scrollHeight) el.style.height = `${el.scrollHeight}px`;
+}
+
+/** One line that grows as needed. Enter writes, Shift+Enter breaks the line */
 export function EntryComposer({
   sessionKey,
   goalId,
   where,
   canEdit,
   placeholder,
-  compact = false,
 }: {
   sessionKey?: string;
   goalId?: string;
   where?: EntryWhere;
   canEdit: boolean;
   placeholder: string;
-  /** One row (phone bottom bar, goal view) */
-  compact?: boolean;
 }) {
-  const [kind, setKind] = useState<EntryKind | undefined>();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const id = `entry-${sessionKey ?? goalId ?? 'journal'}`;
+
+  useEffect(() => fitHeight(field.current), [text]);
 
   const submit = async () => {
     const value = text.trim();
     if (!value || busy || !canEdit) return;
     setBusy(true);
     setFailed(false);
-    const content: EntryContent = { kind, text: value, ...(goalId ? { goalId } : {}), ...(where ? { where } : {}) };
+    const content: EntryContent = { text: value, ...(goalId ? { goalId } : {}), ...(where ? { where } : {}) };
     try {
       await writeEntry(content, sessionKey);
       setText('');
-      setKind(undefined);
     } catch {
       setFailed(true);
     } finally {
@@ -125,39 +108,31 @@ export function EntryComposer({
     }
   };
 
+  // The count shows only near the limit, so the bar stays a single quiet line
+  const nearLimit = text.length > ENTRY_LIMIT - 60;
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
-      className="rounded-xl border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
     >
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('entry.kind')}>
-        {ENTRY_KINDS.map((k) => (
-          <button
-            key={k}
-            type="button"
-            aria-pressed={kind === k}
-            onClick={() => setKind((v) => (v === k ? undefined : k))}
-            className={`h-8 rounded-full border px-3 text-xs font-medium ${kind === k ? KIND_RING[k] : 'border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300'}`}
-          >
-            {kindLabel(k)}
-          </button>
-        ))}
-        {!compact && <span className="text-xs text-zinc-400">{t('entry.kindOptional')}</span>}
-      </div>
-      <div className="mt-2.5 flex items-start gap-2">
-        <label className="sr-only" htmlFor={`entry-${sessionKey ?? goalId ?? 'journal'}`}>
+      <div className="flex items-end gap-2 rounded-xl border border-zinc-300 bg-white py-1 pl-3 pr-1 focus-within:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
+        <span aria-hidden="true" className="self-center font-mono text-sm text-zinc-400">
+          ›
+        </span>
+        <label className="sr-only" htmlFor={id}>
           {placeholder}
         </label>
         <textarea
-          id={`entry-${sessionKey ?? goalId ?? 'journal'}`}
+          ref={field}
+          id={id}
           value={text}
           maxLength={ENTRY_LIMIT}
-          rows={compact ? 1 : 2}
+          rows={1}
           disabled={!canEdit}
           placeholder={canEdit ? placeholder : t('entry.needKey')}
+          title={t('entry.enterHint')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -165,27 +140,31 @@ export function EntryComposer({
               void submit();
             }
           }}
-          className="min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-base outline-none focus:border-zinc-500 sm:text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="max-h-40 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-base outline-none sm:text-sm"
         />
         <button
           type="submit"
           disabled={!canEdit || busy || !text.trim()}
-          className="h-10 shrink-0 rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+          className="h-9 shrink-0 rounded-lg bg-zinc-900 px-3.5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
         >
           {t('entry.write')}
         </button>
       </div>
-      <div className="mt-1.5 flex justify-between text-xs text-zinc-400">
-        <span>{failed ? <span className="text-red-500">{t('entry.failed')}</span> : compact ? '' : t('entry.enterHint')}</span>
-        <span className="tabular-nums">
-          {text.length} / {ENTRY_LIMIT}
-        </span>
-      </div>
+      {(failed || nearLimit) && (
+        <div className="mt-1 flex justify-between px-1 text-xs text-zinc-400">
+          <span>{failed && <span className="text-red-500">{t('entry.failed')}</span>}</span>
+          {nearLimit && (
+            <span className="tabular-nums">
+              {text.length} / {ENTRY_LIMIT}
+            </span>
+          )}
+        </div>
+      )}
     </form>
   );
 }
 
-const timeFmt = () => new Intl.DateTimeFormat(getLang(), { hour: 'numeric', minute: '2-digit' });
+const timeFmt = () => new Intl.DateTimeFormat(getLang(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const dayFmt = () => new Intl.DateTimeFormat(getLang(), { month: 'long', day: 'numeric', weekday: 'short' });
 const dayKey = (iso: string) => {
   const d = new Date(iso);
@@ -217,17 +196,29 @@ function EntryItem({ entry, canEdit, where }: { entry: Entry; canEdit: boolean; 
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(entry.text);
   const [confirm, setConfirm] = useState(false);
-  if (entry.locked) return <li className="py-2 text-sm text-zinc-400">🔒 {t('entry.locked')}</li>;
+  const time = (
+    <time dateTime={entry.createdAt} className="pt-0.5 text-xs tabular-nums text-zinc-400">
+      {timeFmt().format(new Date(entry.createdAt))}
+    </time>
+  );
+  const row = 'group grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 border-b border-dashed border-zinc-200 py-2.5 last:border-b-0 dark:border-zinc-800';
+  if (entry.locked)
+    return (
+      <li className={row}>
+        {time}
+        <p className="text-sm text-zinc-400">🔒 {t('entry.locked')}</p>
+      </li>
+    );
   const save = async () => {
     const value = text.trim();
     if (value && value !== entry.text) await rewriteEntry(entry, { text: value }).catch(() => {});
     setEditing(false);
   };
+  const context = [where, entry.fromNote ? t('entry.fromNote') : undefined].filter(Boolean).join(' · ');
   return (
-    <li className="flex gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-zinc-800 dark:bg-zinc-900/60">
-      {/* Actions sit on the time line, so the text keeps the full width on a phone */}
-      <KindChip entry={entry} />
-      <div className="min-w-0 flex-1">
+    <li className={row}>
+      {time}
+      <div className="min-w-0">
         {editing ? (
           <textarea
             value={text}
@@ -251,41 +242,41 @@ function EntryItem({ entry, canEdit, where }: { entry: Entry; canEdit: boolean; 
         ) : (
           <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-relaxed">{entry.text}</p>
         )}
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-zinc-400">
-          <span className="min-w-0 flex-1">
-            <time dateTime={entry.createdAt}>{timeFmt().format(new Date(entry.createdAt))}</time>
-            {where && ` · ${where}`}
-          </span>
-      {canEdit && !editing && (
-        <span className="flex shrink-0 items-center gap-1">
-          {confirm ? (
-            <>
-              <button type="button" onClick={() => setConfirm(false)} className="rounded-md px-2 py-1 text-zinc-500">
-                {t('entry.cancel')}
-              </button>
-              <button type="button" onClick={() => deleteEntry(entry.id)} className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white">
-                {t('entry.delete')}
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setEditing(true)} className="rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                {t('entry.edit')}
-              </button>
-              <button type="button" onClick={() => setConfirm(true)} className="rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                {t('entry.delete')}
-              </button>
-            </>
-          )}
-        </span>
-      )}
-        </div>
+        {(context || (canEdit && !editing)) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-400">
+            <span className="min-w-0 flex-1">{context}</span>
+            {canEdit && !editing && (
+              // Shown on hover where there is one; always shown on touch screens
+              <span className={`flex shrink-0 items-center gap-1 ${confirm ? '' : '[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}>
+                {confirm ? (
+                  <>
+                    <button type="button" onClick={() => setConfirm(false)} className="rounded-md px-2 py-0.5 text-zinc-500">
+                      {t('entry.cancel')}
+                    </button>
+                    <button type="button" onClick={() => deleteEntry(entry.id)} className="rounded-md bg-red-600 px-2 py-0.5 font-semibold text-white">
+                      {t('entry.delete')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => setEditing(true)} className="rounded-md px-2 py-0.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                      {t('entry.edit')}
+                    </button>
+                    <button type="button" onClick={() => setConfirm(true)} className="rounded-md px-2 py-0.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                      {t('entry.delete')}
+                    </button>
+                  </>
+                )}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </li>
   );
 }
 
-/** Entries grouped by day, newest first. showWhere: say which card/goal each came from (journal, goal view) */
+/** Entries as a log grouped by day, newest first. showWhere: say which card/goal each came from (journal, goal view) */
 export function EntryList({
   entries,
   now,
@@ -316,8 +307,8 @@ export function EntryList({
     <div className="space-y-5">
       {days.map((d) => (
         <section key={d.label}>
-          <h3 className="mb-2 text-xs font-semibold text-zinc-500">{d.label}</h3>
-          <ul className="space-y-2">
+          <h3 className="mb-1 text-xs font-semibold text-zinc-500">{d.label}</h3>
+          <ul>
             {d.list.map((e) => (
               <EntryItem key={e.id} entry={e} canEdit={canEdit} where={showWhere ? whereText(e, goals, sessionKeys) : undefined} />
             ))}

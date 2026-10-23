@@ -45,7 +45,7 @@ export async function fetchDetail(key: string): Promise<SessionDetail | null> {
   return { session, turns, timeline };
 }
 
-export async function postAction(key: string, action: 'ack' | 'archive' | 'unarchive'): Promise<void> {
+export async function postAction(key: string, action: 'ack'): Promise<void> {
   await fetch(`${path(key)}/${action}`, { method: 'POST' });
 }
 

@@ -2,11 +2,12 @@ import { type ContentKeys, open, seal, toBase64Url } from '@bitl/shared/client';
 import { contentKeys } from './keys';
 
 /**
- * Entries — the short notes a person leaves along the way: what they solved, learned, or where they were in the flow.
+ * Entries — the short notes a person leaves along the way, one line at a time, like a work log.
  * They outlive cards (clearing or deleting a card leaves them), so each keeps where it was written (card title, project…).
  * Everything but the time and the card it belongs to is sealed as one blob (AAD = entry:<id>) — including which goal.
  */
 
+/** Kinds older entries were tagged with. No longer chosen or shown; kept so rewriting an old entry doesn't drop it */
 export const ENTRY_KINDS = ['solved', 'learned', 'flow'] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
 /** Max length of one entry — a line or two, so it gets written */
@@ -21,6 +22,7 @@ export interface EntryWhere {
 }
 
 export interface EntryContent {
+  /** Only on older entries */
   kind?: EntryKind;
   text: string;
   goalId?: string;

@@ -1,42 +1,86 @@
 import type { Session } from '@bitl/shared/client';
 import { useEffect, useMemo, useState } from 'react';
-import { type Entry, ENTRY_KINDS, type EntryKind } from './entries';
-import { EntryComposer, EntryList, kindLabel, useEntries } from './EntryViews';
+import type { Entry } from './entries';
+import { EntryComposer, EntryList, useEntries } from './EntryViews';
 import type { Goal } from './goals';
-import { t } from './i18n';
+import { getLang, t } from './i18n';
 
 /**
  * Looking back: a goal's notes (written on the goal or on its cards) and the journal (every note, by day).
  * Notes outlive cards, so a note from a removed card still shows where it was written.
  */
 
-/** The goal's notes and a count by kind. Replaces the goal's card columns while "Notes" is chosen */
+/** The goal's notes and how they piled up over time. Replaces the goal's card columns while "Notes" is chosen */
 export function GoalJournal({ goal, sessions, now, canEdit }: { goal: Goal; sessions: Session[]; now: number; canEdit: boolean }) {
   const members = useMemo(() => new Set(goal.members), [goal.members]);
   const keep = (e: Entry) => e.goalId === goal.id || (e.sessionKey !== undefined && members.has(e.sessionKey));
   const { entries, more, loadMore } = useEntries({}, keep);
   const sessionKeys = useMemo(() => new Set(sessions.map((s) => s.key)), [sessions]);
-  const counts = (k: EntryKind) => entries.filter((e) => e.kind === k).length;
+  const days = new Set(entries.map((e) => localDay(new Date(e.createdAt)))).size;
+  const first = entries.at(-1);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="min-w-0 space-y-4">
-        <EntryComposer goalId={goal.id} canEdit={canEdit} placeholder={t('entry.placeholderGoal')} compact />
+        <EntryComposer goalId={goal.id} canEdit={canEdit} placeholder={t('entry.placeholderGoal')} />
         <EntryList entries={entries} now={now} canEdit={canEdit} showWhere sessionKeys={sessionKeys} empty={t('entry.emptyGoal')} />
         {more && <MoreButton onClick={loadMore} />}
       </div>
       <aside className="h-fit rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h3 className="text-sm font-semibold">{t('entry.goalSummary')}</h3>
-        <dl className="mt-3 space-y-1.5 text-sm">
-          {ENTRY_KINDS.map((k) => (
-            <div key={k} className="flex justify-between">
-              <dt className="text-zinc-600 dark:text-zinc-300">{kindLabel(k)}</dt>
-              <dd className="font-semibold tabular-nums">{counts(k)}</dd>
-            </div>
-          ))}
+        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          <Stat label={t('entry.statCount')} value={String(entries.length)} />
+          <Stat label={t('entry.statDays')} value={String(days)} />
+          {first && <Stat label={t('entry.statFirst')} value={new Intl.DateTimeFormat(getLang(), { month: 'numeric', day: 'numeric' }).format(new Date(first.createdAt))} />}
         </dl>
+        <RecentDays entries={entries} now={now} />
         <p className="mt-3 text-xs leading-relaxed text-zinc-500">{t('entry.goalHint')}</p>
       </aside>
+    </div>
+  );
+}
+
+const localDay = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col-reverse">
+      <dt className="text-xs text-zinc-500">{label}</dt>
+      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+const RECENT_DAYS = 14;
+
+/** A bar per day for the last two weeks, taller with more notes; empty days stay a faint stub */
+function RecentDays({ entries, now }: { entries: Entry[]; now: number }) {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    const key = localDay(new Date(e.createdAt));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const today = new Date(now);
+  const bars = Array.from({ length: RECENT_DAYS }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (RECENT_DAYS - 1 - i));
+    return { date: d, n: counts.get(localDay(d)) ?? 0 };
+  });
+  const max = Math.max(1, ...bars.map((b) => b.n));
+  const fmt = new Intl.DateTimeFormat(getLang(), { month: 'numeric', day: 'numeric' });
+  const active = bars.filter((b) => b.n > 0).length;
+  return (
+    <div className="mt-4">
+      <p className="mb-1.5 text-xs text-zinc-500">{t('entry.recentDays', { n: active })}</p>
+      <div className="flex h-8 items-end gap-[3px]" role="img" aria-label={t('entry.recentDays', { n: active })}>
+        {bars.map((b) => (
+          <span
+            key={b.date.toISOString()}
+            title={`${fmt.format(b.date)} · ${b.n}`}
+            style={{ height: b.n ? `${30 + (70 * b.n) / max}%` : '15%' }}
+            className={`flex-1 rounded-sm ${b.n ? 'bg-zinc-500 dark:bg-zinc-400' : 'bg-zinc-200 dark:bg-zinc-800'}`}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -49,13 +93,9 @@ function MoreButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-const NO_KIND = 'none';
-type KindFilter = EntryKind | typeof NO_KIND;
-
-/** The journal: every note by day, with search and filters by kind and goal. Opened from the ☰ menu; covers the board */
+/** The journal: every note by day, with search and a filter by goal. Opened from the ☰ menu; covers the board */
 export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goal[]; sessions: Session[]; now: number; canEdit: boolean; onClose: () => void }) {
   const { entries, more, loadMore } = useEntries({});
-  const [kinds, setKinds] = useState<Set<KindFilter>>(new Set([...ENTRY_KINDS, NO_KIND]));
   const [goalId, setGoalId] = useState('');
   const [linkGoal, setLinkGoal] = useState('');
   const [query, setQuery] = useState('');
@@ -70,7 +110,6 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
 
   const goal = goals.find((g) => g.id === goalId);
   const shown = entries.filter((e) => {
-    if (!kinds.has(e.kind ?? NO_KIND)) return false;
     if (goal && e.goalId !== goal.id && !(e.sessionKey && goal.members.includes(e.sessionKey))) return false;
     const q = query.trim().toLowerCase();
     return !q || e.text.toLowerCase().includes(q) || (e.where?.title ?? '').toLowerCase().includes(q) || (e.where?.project ?? '').toLowerCase().includes(q);
@@ -80,13 +119,6 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
     const d = new Date(e.createdAt);
     return d.getFullYear() === month.getFullYear() && d.getMonth() === month.getMonth();
   }).length;
-  const toggleKind = (k: KindFilter) =>
-    setKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
 
   const select = 'h-10 rounded-lg border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900';
   const filters = (
@@ -97,16 +129,6 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
         </label>
         <input id="journal-search" value={query} onChange={(e) => setQuery(e.target.value)} className={`${select} w-full px-3`} />
       </div>
-      <fieldset className="space-y-2">
-        <legend className="mb-1.5 text-xs text-zinc-500">{t('journal.kinds')}</legend>
-        {([...ENTRY_KINDS, NO_KIND] as KindFilter[]).map((k) => (
-          <label key={k} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={kinds.has(k)} onChange={() => toggleKind(k)} />
-            {kindLabel(k === NO_KIND ? undefined : k)}
-            <span className="text-zinc-400 tabular-nums">{entries.filter((e) => (e.kind ?? NO_KIND) === k).length}</span>
-          </label>
-        ))}
-      </fieldset>
       <div className="space-y-1.5">
         <label htmlFor="journal-goal" className="text-xs text-zinc-500">
           {t('journal.goal')}
@@ -165,7 +187,7 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
                 </select>
               </div>
             )}
-            <EntryComposer goalId={linkGoal || undefined} canEdit={canEdit} placeholder={t('journal.placeholder')} compact />
+            <EntryComposer goalId={linkGoal || undefined} canEdit={canEdit} placeholder={t('journal.placeholder')} />
           </div>
           <EntryList
             entries={shown}
