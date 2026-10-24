@@ -17,7 +17,7 @@ const HOST = process.env.BITL_HOST ?? '127.0.0.1';
 const SWEEP_INTERVAL_MS = 30_000;
 const PRUNE_INTERVAL_MS = 60 * 60_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60_000;
-/** Retention for raw events (timeline). Session and turn summaries are kept */
+/** Retention for the raw event log (signals only, kept for debugging). Session and turn summaries are kept */
 const EVENT_RETENTION_DAYS = Number(process.env.BITL_EVENT_RETENTION_DAYS ?? 14);
 export const env = (name: string) => process.env[name]?.trim() || undefined;
 

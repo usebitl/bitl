@@ -1,17 +1,14 @@
 import {
   normalizeReport,
   openSession,
-  openTimelineItem,
   openTurn,
   prepareRecord,
   type ReportEvent,
   type Session,
   type StoredSession,
-  type StoredTimelineItem,
   type StoredTurn,
   seal,
   sealerFor,
-  type TimelineItem,
   type Turn,
 } from '@bitl/shared/client';
 import { t } from './i18n';
@@ -20,7 +17,6 @@ import { contentKeys } from './keys';
 export interface SessionDetail {
   session: Session;
   turns: Turn[];
-  timeline: TimelineItem[];
 }
 
 const path = (key: string) => `/api/sessions/${encodeURIComponent(key)}`;
@@ -35,14 +31,10 @@ async function requireKeys() {
 export async function fetchDetail(key: string): Promise<SessionDetail | null> {
   const res = await fetch(path(key));
   if (!res.ok) return null;
-  const raw = (await res.json()) as { session: StoredSession; turns: StoredTurn[]; timeline: StoredTimelineItem[] };
+  const raw = (await res.json()) as { session: StoredSession; turns: StoredTurn[] };
   const keys = await contentKeys();
-  const [session, turns, timeline] = await Promise.all([
-    openSession(keys, raw.session),
-    Promise.all(raw.turns.map((t) => openTurn(keys, t))),
-    Promise.all(raw.timeline.map((t) => openTimelineItem(keys, key, t))),
-  ]);
-  return { session, turns, timeline };
+  const [session, turns] = await Promise.all([openSession(keys, raw.session), Promise.all(raw.turns.map((t) => openTurn(keys, t)))]);
+  return { session, turns };
 }
 
 export async function postAction(key: string, action: 'ack'): Promise<void> {
@@ -83,7 +75,7 @@ export async function clearBoard(opts: { goals: boolean }): Promise<void> {
   if (!res.ok) throw new Error(`clear ${res.status}`);
 }
 
-/** Deletes a card along with its history (turns, timeline) */
+/** Deletes a card along with its history (turns, event log) */
 export async function deleteSession(key: string): Promise<void> {
   await fetch(path(key), { method: 'DELETE' });
 }

@@ -55,11 +55,8 @@ if (typeof window !== 'undefined') {
   });
 }
 
-/** Running as the installed app — on desktop Chrome/Edge that may be the window-controls-overlay mode (the board's header in the title bar) */
 export const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** iPhone/iPad (iPadOS reports as Mac, so detect by touch) */
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

@@ -1,4 +1,4 @@
-import type { Sealed, StoredSession, StoredTimelineItem, StoredTurn, WireRecord } from '@bitl/shared';
+import type { Sealed, StoredSession, StoredTurn, WireRecord } from '@bitl/shared';
 
 /** The only account in local mode. In cloud mode, the signed-in account id */
 export const LOCAL_ACCOUNT = 'local';
@@ -31,7 +31,6 @@ export interface SessionStore {
   getSession(accountId: string, key: string): Promise<StoredSession | undefined>;
   listSessions(accountId: string, opts?: ListOptions): Promise<StoredSession[]>;
   listTurns(accountId: string, key: string, limit?: number): Promise<StoredTurn[]>;
-  listTimeline(accountId: string, key: string, limit?: number): Promise<StoredTimelineItem[]>;
   editSession(accountId: string, key: string, edit: SessionEdit): Promise<StoredSession | undefined>;
   acknowledge(accountId: string, key: string, now?: Date): Promise<StoredSession | undefined>;
   /** Deletes a session with all its turns and events. true if deleted */

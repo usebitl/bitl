@@ -2,12 +2,12 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { StoredSession, StoredTimelineItem, StoredTurn } from '@bitl/shared';
+import type { StoredSession, StoredTurn } from '@bitl/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { drainQueue } from '../src/index.js';
 import { LOCAL_ACCOUNT as A, openSqliteStore, type SessionStore } from '../src/store/index.js';
-import { keys, view, viewTimeline, viewTurns, wire } from './helpers.js';
+import { eventLog, keys, view, viewTurns, wire } from './helpers.js';
 
 let store: SessionStore;
 let app: ReturnType<typeof createApp>;
@@ -158,10 +158,8 @@ describe('session API', () => {
     const next = await wire({ ...rec('UserPromptSubmit', { prompt: '새 지시' }, '2026-09-26T00:00:02Z'), payload: { ...rec('x').payload, hook_event_name: 'UserPromptSubmit', prompt: '새 지시', session_id: 'new' } });
     await postJson({ ...next, signal: { ...next.signal, resumedFrom: 'old' } });
 
-    const detail = (await (await app.request('/api/sessions/claude-code:new')).json()) as { turns: StoredTurn[]; timeline: StoredTimelineItem[] };
+    const detail = (await (await app.request('/api/sessions/claude-code:new')).json()) as { turns: StoredTurn[] };
     expect((await viewTurns(detail.turns)).map((t) => t.prompt)).toEqual(['새 지시', '예전 지시']);
-    const timeline = await viewTimeline('claude-code:new', detail.timeline);
-    expect(timeline.map((t) => t.text)).toEqual(['새 지시', '예전 지시']);
     // The earlier card is off the list the board hides, but still on the server
     expect(((await (await app.request('/api/sessions')).json()) as StoredSession[]).find((s) => s.key === 'claude-code:old')?.replacedBy).toBe('claude-code:new');
   });
@@ -265,8 +263,8 @@ describe('old-format DB', () => {
     expect(s.backupPath).toBeUndefined();
     expect((await view(await s.getSession(A, 'claude-code:s1')))?.title).toBe('옮겨질 작업');
     expect(await s.listTurns(A, 'claude-code:s1')).toHaveLength(1);
-    // only failed tools stay in the timeline — checks tool_failed was filled from old data
-    expect((await s.listTimeline(A, 'claude-code:s1')).map((t) => t.nativeType)).toEqual(['PostToolUseFailure', 'UserPromptSubmit']);
+    // tool_failed is filled from the old data
+    expect((await eventLog(s, A, 'claude-code:s1')).filter((e) => e.toolFailed).map((e) => e.nativeType)).toEqual(['PostToolUseFailure']);
     await s.close();
   });
 });

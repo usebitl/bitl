@@ -124,28 +124,3 @@ const TITLE_LABELS: TitleLabels = { locked: "🔒 Can't be opened with this devi
 
 export const displayTitle = (s: Pick<Session, 'aiTitle' | 'title' | 'project' | 'locked'>, labels: TitleLabels = TITLE_LABELS): string =>
   s.aiTitle ?? s.title ?? s.project ?? (s.locked ? labels.locked : labels.untitled);
-
-/** One line of the session detail timeline */
-export interface TimelineItem {
-  at: string;
-  type: string;
-  nativeType: string;
-  agentType?: string;
-  tool?: { name: string; summary?: string; failed?: boolean };
-  text?: string;
-  waitingReason?: string;
-}
-
-export const TIMELINE_CONTENT_FIELDS = ['tool', 'toolSummary', 'agentType', 'text'] as const;
-export type TimelineContentField = (typeof TIMELINE_CONTENT_FIELDS)[number];
-
-export interface StoredTimelineItem {
-  at: string;
-  type: string;
-  nativeType: string;
-  waitingReason?: string;
-  toolFailed?: boolean;
-  content: Partial<Record<TimelineContentField, Sealed>>;
-  /** Set on items from an earlier session (resumedFrom) — their content is sealed with that session's key */
-  sessionKey?: string;
-}

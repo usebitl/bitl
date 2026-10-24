@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deriveKeys, generateMasterKey, seal } from '../src/crypto.js';
 import { displayTitle, type StoredSession } from '../src/session.js';
-import { openSession, openTimelineItem, openTurn } from '../src/view.js';
+import { openSession, openTurn } from '../src/view.js';
 
 const keys = await deriveKeys(generateMasterKey());
 const other = await deriveKeys(generateMasterKey());
@@ -48,8 +48,8 @@ describe('openSession', () => {
   });
 });
 
-describe('openTurn / openTimelineItem', () => {
-  it('turn and timeline line', async () => {
+describe('openTurn', () => {
+  it('turn', async () => {
     const t = await openTurn(keys, {
       sessionKey: KEY,
       prompt: await seal(keys, '지시', KEY),
@@ -59,21 +59,5 @@ describe('openTurn / openTimelineItem', () => {
       toolCount: 2,
     });
     expect(t).toMatchObject({ prompt: '지시', result: '결과', toolCount: 2 });
-
-    const item = await openTimelineItem(keys, KEY, {
-      at: '2026-09-27T00:00:01.000Z',
-      type: 'tool_end',
-      nativeType: 'PostToolUseFailure',
-      toolFailed: true,
-      content: { tool: await seal(keys, 'Edit', KEY), toolSummary: await seal(keys, 'a.ts', KEY), text: await seal(keys, 'no match', KEY) },
-    });
-    expect(item).toEqual({
-      at: '2026-09-27T00:00:01.000Z',
-      type: 'tool_end',
-      nativeType: 'PostToolUseFailure',
-      waitingReason: undefined,
-      tool: { name: 'Edit', summary: 'a.ts', failed: true },
-      text: 'no match',
-    });
   });
 });

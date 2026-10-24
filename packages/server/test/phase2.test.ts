@@ -1,8 +1,8 @@
-import { seal, type StoredSession, type StoredTimelineItem, type StoredTurn } from '@bitl/shared';
+import { seal, type StoredSession, type StoredTurn } from '@bitl/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { LOCAL_ACCOUNT as A, openSqliteStore, type SessionStore } from '../src/store/index.js';
-import { keys, view, viewTimeline, viewTurns, wire } from './helpers.js';
+import { eventLog, keys, view, viewTurns, wire } from './helpers.js';
 
 let store: SessionStore;
 let app: ReturnType<typeof createApp>;
@@ -70,8 +70,8 @@ describe('PATCH /api/sessions/:key', () => {
   });
 });
 
-describe('session detail timeline', () => {
-  it('newest first, excludes notice and successful tool_end, includes failed tools', async () => {
+describe('session detail', () => {
+  it('carries the session and its turns only — the event log stays on the server, signals only', async () => {
     await hook('UserPromptSubmit', { prompt: '테스트 고쳐줘' }, '2026-09-26T00:00:01Z');
     await hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } }, '2026-09-26T00:00:02Z');
     await hook('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } }, '2026-09-26T00:00:03Z');
@@ -79,12 +79,11 @@ describe('session detail timeline', () => {
     await hook('PreCompact', {}, '2026-09-26T00:00:05Z');
     await hook('Stop', { last_assistant_message: '완료' }, '2026-09-26T00:00:06Z');
 
-    const { timeline } = (await (await app.request('/api/sessions/claude-code:s1')).json()) as { timeline: StoredTimelineItem[] };
-    expect(timeline.map((t) => t.nativeType)).toEqual(['Stop', 'PostToolUseFailure', 'PreToolUse', 'UserPromptSubmit']);
-    const items = await viewTimeline('claude-code:s1', timeline);
-    expect(items[1]).toMatchObject({ tool: { name: 'Edit', summary: 'a.ts', failed: true }, text: 'no match' });
-    expect(items[2]).toMatchObject({ tool: { name: 'Bash', summary: 'pnpm test' } });
-    expect(JSON.stringify(timeline)).not.toContain('pnpm');
+    const detail = (await (await app.request('/api/sessions/claude-code:s1')).json()) as object;
+    expect(Object.keys(detail).sort()).toEqual(['session', 'turns']);
+    const log = await eventLog(store, A, 'claude-code:s1');
+    expect(log.map((e) => e.nativeType)).toEqual(['Stop', 'PreCompact', 'PostToolUseFailure', 'PostToolUse', 'PreToolUse', 'UserPromptSubmit']);
+    for (const e of log) expect(Object.keys(e.data)).toEqual(['signal']);
   });
 });
 
@@ -93,7 +92,7 @@ describe('pruneEvents', () => {
     await hook('UserPromptSubmit', { prompt: 'old' }, '2026-09-01T00:00:00Z');
     await hook('Stop', {}, '2026-09-20T00:00:00Z');
     expect(await store.pruneEvents(new Date('2026-09-10T00:00:00Z'))).toBe(1);
-    expect((await store.listTimeline(A, 'claude-code:s1'))).toHaveLength(1);
+    expect(await eventLog(store, A, 'claude-code:s1')).toHaveLength(1);
     expect((await session('claude-code:s1'))?.title).toBe('old');
   });
 });
@@ -160,7 +159,7 @@ describe('DELETE /api/sessions/:key', () => {
 
     expect((await store.getSession(A, 'claude-code:s1'))).toBeUndefined();
     expect((await store.listTurns(A, 'claude-code:s1'))).toHaveLength(0);
-    expect((await store.listTimeline(A, 'claude-code:s1'))).toHaveLength(0);
+    expect(await eventLog(store, A, 'claude-code:s1')).toHaveLength(0);
     expect((await json('DELETE', '/api/sessions/claude-code:s1')).status).toBe(404);
   });
 

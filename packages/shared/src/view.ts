@@ -1,6 +1,6 @@
 // Ciphertext from the server → plaintext for display (browser, CLI). Fields that can't be opened are left empty and marked locked.
 import { type ContentKeys, open, type Sealed } from './crypto.js';
-import type { Session, StoredSession, StoredTimelineItem, StoredTurn, TimelineItem, Turn } from './session.js';
+import type { Session, StoredSession, StoredTurn, Turn } from './session.js';
 
 type Opened = { value?: string; failed: boolean };
 
@@ -40,16 +40,4 @@ export async function openSession(keys: ContentKeys | null, s: StoredSession): P
 export async function openTurn(keys: ContentKeys | null, t: StoredTurn): Promise<Turn> {
   const [prompt, result] = await Promise.all([tryOpen(keys, t.prompt, t.sessionKey), tryOpen(keys, t.result, t.sessionKey)]);
   return { ...t, prompt: prompt.value, result: result.value };
-}
-
-export async function openTimelineItem(keys: ContentKeys | null, sessionKey: string, t: StoredTimelineItem): Promise<TimelineItem> {
-  // An item from an earlier session (resumedFrom) is sealed with that session's key
-  const { values } = await openFields(keys, t.content ?? {}, t.sessionKey ?? sessionKey);
-  const item: TimelineItem = { at: t.at, type: t.type, nativeType: t.nativeType, waitingReason: t.waitingReason };
-  if (values.agentType) item.agentType = values.agentType;
-  if (values.text) item.text = values.text;
-  if (values.tool || t.toolFailed) {
-    item.tool = { name: values.tool ?? '🔒', summary: values.toolSummary, ...(t.toolFailed ? { failed: true } : {}) };
-  }
-  return item;
 }

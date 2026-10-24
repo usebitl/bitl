@@ -1,10 +1,4 @@
-import {
-  sessionKey,
-  type StoredSession,
-  type StoredTimelineItem,
-  type StoredTurn,
-  type WireRecord,
-} from '@bitl/shared';
+import { sessionKey, type StoredSession, type StoredTurn, type WireRecord } from '@bitl/shared';
 import { acknowledge, applyEvent, markStale, type TurnOp } from '../state.js';
 import type { Driver, ListOptions, Query, Row, SessionEdit, SessionStore, StoreChange } from './types.js';
 
@@ -109,6 +103,7 @@ export class SqlStore implements SessionStore {
       const { session, turns } = applyEvent(prev, e, content);
       await SqlStore.save(q, accountId, session);
       for (const op of turns) await SqlStore.applyTurn(q, accountId, key, op);
+      // Event log for debugging: the signal only (what happened, when, in what order) — the content lives on in the card and turns
       await q('INSERT INTO events (account_id, session_key, at, type, native_type, tool_failed, data) VALUES (?, ?, ?, ?, ?, ?, ?)', [
         accountId,
         key,
@@ -116,7 +111,7 @@ export class SqlStore implements SessionStore {
         e.type,
         e.nativeType,
         e.toolFailed ? 1 : 0,
-        JSON.stringify({ signal: e, content }),
+        JSON.stringify({ signal: e }),
       ]);
       return session;
     }, SqlStore.lockKey(accountId, key));
@@ -167,25 +162,6 @@ export class SqlStore implements SessionStore {
       endedAt: opt(r.ended_at),
       toolCount: Number(r.tool_count),
     }));
-  }
-
-  /**
-   * Session detail timeline (newest first). Informational (notice) events are excluded,
-   * and tool completions (tool_end) duplicate the start, so only failed ones are kept.
-   */
-  async listTimeline(accountId: string, key: string, limit = 200): Promise<StoredTimelineItem[]> {
-    const { rows } = await this.db.query(
-      `SELECT data FROM events WHERE account_id = ? AND session_key = ? AND type != 'notice'
-       AND NOT (type = 'tool_end' AND tool_failed = 0)
-       ORDER BY at DESC, id DESC LIMIT ?`,
-      [accountId, key, limit],
-    );
-    return rows.map((r) => {
-      const { signal: e, content: c } = JSON.parse(r.data as string) as Pick<WireRecord, 'signal' | 'content'>;
-      const content: StoredTimelineItem['content'] = {};
-      for (const f of ['tool', 'toolSummary', 'agentType', 'text'] as const) if (c[f]) content[f] = c[f];
-      return { at: e.at, type: e.type, nativeType: e.nativeType, waitingReason: e.waitingReason, toolFailed: e.toolFailed, content };
-    });
   }
 
   editSession(accountId: string, key: string, edit: SessionEdit) {

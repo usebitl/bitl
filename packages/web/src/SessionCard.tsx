@@ -126,7 +126,7 @@ function Actions({ s }: { s: Session }) {
 
 /**
  * Delete confirmation row. Asks once more in-page instead of the browser's confirm() (works in mobile webviews too).
- * Deleting removes turn and timeline history too; if the agent keeps working in that session, it reappears as a new card.
+ * Deleting removes its turns and event log too; if the agent keeps working in that session, it reappears as a new card.
  */
 export function DeleteConfirm({ s, onCancel, onDeleted }: { s: Session; onCancel: () => void; onDeleted?: () => void }) {
   return (

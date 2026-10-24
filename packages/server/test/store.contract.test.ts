@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SessionStore, StoreChange } from '../src/store/index.js';
 import { CONTRACT_DATABASES, DATABASES } from './databases.js';
-import { view, viewTurns, wire } from './helpers.js';
+import { eventLog, view, viewTurns, wire } from './helpers.js';
 
 const backends = [...DATABASES, ...CONTRACT_DATABASES];
 
@@ -17,7 +17,7 @@ describe.each(backends)('store contract — %s', (_name, open) => {
   });
   afterEach(() => store.close());
 
-  it('ingest: session, turns, timeline', async () => {
+  it('ingest: session, turns, and an event log of signals only', async () => {
     await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: '로그인 고쳐줘', prompt_id: 'p1' }, 1));
     await store.ingest('a', await hook('s1', 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' }, prompt_id: 'p1' }, 2));
     await store.ingest('a', await hook('s1', 'PostToolUseFailure', { tool_name: 'Edit', tool_input: { file_path: 'a.ts' }, error_message: 'no' }, 3));
@@ -28,12 +28,11 @@ describe.each(backends)('store contract — %s', (_name, open) => {
     expect(await viewTurns(await store.listTurns('a', 'claude-code:s1'))).toEqual([
       expect.objectContaining({ turnId: 'p1', prompt: '로그인 고쳐줘', result: '끝', status: 'done', toolCount: 1 }),
     ]);
-    expect((await store.listTimeline('a', 'claude-code:s1')).map((t) => t.nativeType)).toEqual([
-      'Stop',
-      'PostToolUseFailure',
-      'PreToolUse',
-      'UserPromptSubmit',
-    ]);
+    const log = await eventLog(store, 'a', 'claude-code:s1');
+    expect(log.map((e) => e.nativeType)).toEqual(['Stop', 'PostToolUseFailure', 'PreToolUse', 'UserPromptSubmit']);
+    expect(log.map((e) => e.toolFailed)).toEqual([false, true, false, false]);
+    // No content in the log, not even sealed: it lives on in the card and turns
+    for (const e of log) expect(Object.keys(e.data)).toEqual(['signal']);
   });
 
   it('list: ended/archived filters, most recent activity first', async () => {
@@ -119,7 +118,7 @@ describe.each(backends)('store contract — %s', (_name, open) => {
     expect(await store.deleteSession('a', 'claude-code:s1')).toBe(true);
     expect(await store.getSession('a', 'claude-code:s1')).toBeUndefined();
     expect(await store.listTurns('a', 'claude-code:s1')).toHaveLength(0);
-    expect(await store.listTimeline('a', 'claude-code:s1')).toHaveLength(0);
+    expect(await eventLog(store, 'a', 'claude-code:s1')).toHaveLength(0);
     expect(await store.deleteSession('a', 'claude-code:s1')).toBe(false);
   });
 
@@ -132,12 +131,12 @@ describe.each(backends)('store contract — %s', (_name, open) => {
     expect(await store.sweepStale(later)).toBe(0);
 
     expect(await store.pruneEvents(new Date(AT(2)))).toBe(2);
-    expect(await store.listTimeline('a', 'claude-code:s1')).toHaveLength(0);
+    expect(await eventLog(store, 'a', 'claude-code:s1')).toHaveLength(0);
     expect(await store.getSession('a', 'claude-code:s1')).toBeDefined(); // the session summary remains
   });
 
   describe('account isolation', () => {
-    it('the same session key is separate per account — get, list, turns, timeline, edit, delete', async () => {
+    it('the same session key is separate per account — get, list, turns, event log, edit, delete', async () => {
       await store.ingest('a', await hook('s1', 'UserPromptSubmit', { prompt: 'A 의 작업' }, 1));
       await store.ingest('b', await hook('s1', 'UserPromptSubmit', { prompt: 'B 의 작업' }, 2));
       await store.ingest('b', await hook('s1', 'Stop', {}, 3));
@@ -147,14 +146,14 @@ describe.each(backends)('store contract — %s', (_name, open) => {
       expect((await store.getSession('a', 'claude-code:s1'))?.status).toBe('running');
       expect(await store.listSessions('c')).toHaveLength(0);
       expect(await store.listTurns('a', 'claude-code:s1')).toHaveLength(1);
-      expect(await store.listTimeline('a', 'claude-code:s1')).toHaveLength(1);
+      expect(await eventLog(store, 'a', 'claude-code:s1')).toHaveLength(1);
 
       await store.editSession('b', 'claude-code:s1', { pinned: true });
       expect((await store.getSession('a', 'claude-code:s1'))?.pinned).toBeUndefined();
       await store.deleteSession('b', 'claude-code:s1');
       expect(await store.getSession('b', 'claude-code:s1')).toBeUndefined();
       expect(await store.getSession('a', 'claude-code:s1')).toBeDefined();
-      expect(await store.listTimeline('a', 'claude-code:s1')).toHaveLength(1);
+      expect(await eventLog(store, 'a', 'claude-code:s1')).toHaveLength(1);
     });
 
     it('sessions of another account cannot be acknowledged, edited or deleted', async () => {
