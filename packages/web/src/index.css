@@ -260,23 +260,31 @@ html[data-theme='cyberpunk'] .bitl-hud-lost {
   to { visibility: hidden; }
 }
 
-/* Cyberpunk: a card that starts waiting on you glitches its title once, then twitches briefly every few seconds */
+/*
+ * Cyberpunk: a card that starts waiting on you glitches its title once, then twitches briefly every few seconds.
+ * The header wordmark does the same (on load, then idle) and rests on its own yellow glow (--bitl-glitch-rest).
+ */
 @keyframes bitl-glitch {
   0% { text-shadow: 2px 0 #ff2a6d, -2px 0 #00e5ff; transform: translate(0); }
   20% { text-shadow: -3px 0 #ff2a6d, 3px 0 #00e5ff; transform: translate(-2px, 1px) skewX(-8deg); }
   40% { text-shadow: 3px 1px #ff2a6d, -3px -1px #00e5ff; transform: translate(2px, -1px); clip-path: inset(15% 0 35% 0); }
   60% { text-shadow: -2px 0 #ff2a6d, 2px 0 #00e5ff; transform: translate(-1px, 0) skewX(6deg); clip-path: none; }
   80% { text-shadow: 1px 0 #ff2a6d, -1px 0 #00e5ff; transform: translate(1px, 0); }
-  100% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+  100% { text-shadow: var(--bitl-glitch-rest, 0 0 6px rgb(255 255 255 / 0.2)); transform: none; }
 }
 @keyframes bitl-glitch-idle {
-  0%, 94% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+  0%, 94% { text-shadow: var(--bitl-glitch-rest, 0 0 6px rgb(255 255 255 / 0.2)); transform: none; }
   95% { text-shadow: -3px 0 #ff2a6d, 3px 0 #00e5ff; transform: translate(-2px, 0) skewX(-6deg); }
   97% { text-shadow: 3px 0 #ff2a6d, -3px 0 #00e5ff; transform: translate(2px, 0); }
-  100% { text-shadow: 0 0 6px rgb(255 255 255 / 0.2); transform: none; }
+  100% { text-shadow: var(--bitl-glitch-rest, 0 0 6px rgb(255 255 255 / 0.2)); transform: none; }
 }
 html[data-theme='cyberpunk'] .bitl-card[data-status='waiting_for_you'] h3 {
   animation: bitl-glitch 0.45s linear 1, bitl-glitch-idle 7s linear 1s infinite;
+}
+html[data-theme='cyberpunk'] .bitl-wordmark {
+  --bitl-glitch-rest: 0 0 10px rgb(252 238 10 / 0.6);
+  display: inline-block;
+  animation: bitl-glitch 0.45s linear 0.3s 1, bitl-glitch-idle 11s linear 1s infinite;
 }
 
 /* Default and Cyberpunk: a light runs around the edge of a running card (in the theme's running color) */
@@ -307,7 +315,7 @@ html[data-theme='cyberpunk'] .bitl-card[data-status='running']::before {
 
 @media (prefers-reduced-motion: reduce) {
   html:not([data-theme]) .bitl-card::before,
-  html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost) {
+  html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost, .bitl-wordmark) {
     animation: none;
   }
 }

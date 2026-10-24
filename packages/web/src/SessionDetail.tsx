@@ -4,7 +4,7 @@ import { t, titleLabels } from './i18n';
 import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type TimelineItem, type Turn } from '@bitl/shared/session';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
 import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
@@ -128,6 +128,84 @@ function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activi
   );
 }
 
+/** Reading mode: a page with lines of text, the last one short */
+function ReaderIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="1.75" width="10" height="12.5" rx="1.75" />
+      <path d="M5.75 5.25h4.5M5.75 8h4.5M5.75 10.75h2.5" />
+    </svg>
+  );
+}
+
+/**
+ * Focus view: the whole conversation, newest turn at the top (like the turns tab), over the entire window — nothing else on screen.
+ * Within a turn the prompt comes before its response. Responses are shown in full (no collapsing).
+ * Esc closes only this view and returns to the detail.
+ */
+function FocusView({ title, turns, now, activity, onClose }: { title: string; turns: Turn[]; now: number; activity?: string; onClose: () => void }) {
+  // Capture phase on window runs before the detail's own Escape listener, so stopping here keeps the detail open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = overflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} className="bitl-below-titlebar fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950">
+      <header className="flex items-center gap-3 border-b border-zinc-200 px-5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-semibold">{title}</h2>
+          <p className="text-xs text-zinc-500">{msg('detail.tabTurns', { n: turns.length })}</p>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+          {msg('detail.focusClose')}
+        </button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5">
+        <ol className="mx-auto max-w-3xl divide-y divide-zinc-200 pb-[max(1rem,env(safe-area-inset-bottom))] dark:divide-zinc-800">
+          {turns.length === 0 && <p className="py-8 text-center text-sm text-zinc-400">{msg('detail.noTurns')}</p>}
+          {turns.map((t, i) => (
+            <li key={`${t.startedAt}-${i}`} className="space-y-4 py-8">
+              <div className="flex flex-col items-end">
+                <div className="mb-1 flex items-center gap-2 text-xs">
+                  {t.status === 'error' && <span className="text-red-500">{msg('detail.turnError')}</span>}
+                  <Time iso={t.startedAt} now={now} />
+                </div>
+                <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800">
+                  {promptText(t.prompt) ?? msg('detail.noPrompt')}
+                </p>
+              </div>
+              {t.result ? (
+                <div className="break-words text-[0.9375rem] leading-relaxed text-zinc-700 dark:text-zinc-300">
+                  <Suspense fallback={<p className="whitespace-pre-wrap">{t.result}</p>}>
+                    <Markdown text={t.result} />
+                  </Suspense>
+                  {t.result.length >= TEXT_LIMIT - 1 && t.result.endsWith('…') && (
+                    <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{msg('detail.clipped', { n: TEXT_LIMIT.toLocaleString() })}</p>
+                  )}
+                </div>
+              ) : (
+                i === 0 &&
+                activity && <p className="break-all border-l-2 border-emerald-300 pl-3 font-mono text-xs text-zinc-500 dark:border-emerald-500/40">{activity}</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 /** The agent's events, with the person's own entries slotted in at the time they were written */
 /**
  * The agent's events, with the person's own entries slotted in at the time they were written.
@@ -200,6 +278,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<'turns' | 'timeline' | 'entries'>('turns');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const closeFocus = useCallback(() => setFocus(false), []);
   const wide = mode === 'wide';
   const { entries } = useEntries({ session: session.key });
   // Kept with each entry, so it still says where it was written after the card is gone
@@ -312,8 +392,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
       </header>
 
       {/* Instructions / timeline switch via tabs (same in wide view — read instructions and responses wide, timeline only when needed) */}
-      <nav className="border-b border-zinc-200 px-5 dark:border-zinc-800">
-        <div className="flex gap-1">
+      <nav className="flex items-center border-b border-zinc-200 px-5 dark:border-zinc-800">
+        <div className="flex min-w-0 gap-1">
         {(
           [
             ['turns', msg('detail.tabTurns', { n: turns.length })],
@@ -331,6 +411,17 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
           </button>
         ))}
         </div>
+        {/* Focus view sits with the content it shows, not with the panel controls in the header */}
+        <button
+          type="button"
+          onClick={() => setFocus(true)}
+          title={msg('detail.focus')}
+          aria-label={msg('detail.focus')}
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <ReaderIcon />
+          <span className="hidden sm:inline">{msg('detail.focusShort')}</span>
+        </button>
       </nav>
 
       <div className="min-h-0 flex-1">
@@ -378,14 +469,24 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
     </aside>
   );
 
+  const focusView = focus && (
+    <FocusView title={displayTitle(session, titleLabels())} turns={turns} now={now} activity={activity} onClose={closeFocus} />
+  );
+
   if (wide) {
     return (
       <div className="bitl-below-titlebar fixed inset-0 z-30 flex items-center justify-center sm:p-6">
         <button type="button" aria-label={msg('detail.close')} onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
         {panel}
+        {focusView}
       </div>
     );
   }
   // side: doesn't block the background — the board stays visible and clickable (full screen on mobile)
-  return <div className="bitl-below-titlebar fixed inset-y-0 right-0 z-30 flex w-full sm:w-auto">{panel}</div>;
+  return (
+    <div className="bitl-below-titlebar fixed inset-y-0 right-0 z-30 flex w-full sm:w-auto">
+      {panel}
+      {focusView}
+    </div>
+  );
 }

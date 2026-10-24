@@ -260,7 +260,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
         <h1 className="text-lg font-bold tracking-tight">
           <a href="/" className="flex items-center gap-2">
             <Logo size={24} />
-            BITL {badge} <span className="bitl-tagline hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
+            <span className="bitl-wordmark">BITL</span> {badge} <span className="bitl-tagline hidden font-normal text-zinc-500 md:inline">· Being In The Loop</span>
           </a>
         </h1>
         {attention > 0 && (
