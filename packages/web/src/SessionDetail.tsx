@@ -6,7 +6,7 @@ import type { Approval } from './approvals';
 import { displayTitle, type Session, type Turn } from '@bitl/shared/session';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
-import { localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL } from './format';
+import { agentReport, localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
 import { writeEntry } from './entries';
 import { EntryComposer, EntryList, useEntries } from './EntryViews';
@@ -94,6 +94,8 @@ function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activi
             <span className="text-zinc-400">{msg('card.tools', { n: t.toolCount })}</span>
           </div>
           <p className="whitespace-pre-wrap break-words text-sm font-medium">{promptText(t.prompt) ?? msg('detail.noPrompt')}</p>
+          {/* A subagent's report came in as the prompt: its text reads like a response, so it's shown like one */}
+          {agentReport(t.prompt) && <ResultText text={agentReport(t.prompt)!} />}
           {t.result && <ResultText text={t.result} />}
           {i === 0 && !t.result && activity && (
             <p className="mt-2 break-all border-l-2 border-emerald-300 pl-3 font-mono text-xs text-zinc-600 dark:border-emerald-500/40 dark:text-zinc-400">
@@ -163,6 +165,13 @@ function FocusView({ title, turns, now, activity, onClose }: { title: string; tu
                   {promptText(t.prompt) ?? msg('detail.noPrompt')}
                 </p>
               </div>
+              {agentReport(t.prompt) && (
+                <div className="break-words border-l-2 border-zinc-200 pl-4 text-[0.9375rem] leading-relaxed text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
+                  <Suspense fallback={<p className="whitespace-pre-wrap">{agentReport(t.prompt)}</p>}>
+                    <Markdown text={agentReport(t.prompt)!} />
+                  </Suspense>
+                </div>
+              )}
               {t.result ? (
                 <div className="break-words text-[0.9375rem] leading-relaxed text-zinc-700 dark:text-zinc-300">
                   <Suspense fallback={<p className="whitespace-pre-wrap">{t.result}</p>}>

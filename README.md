@@ -101,6 +101,14 @@ The local edition stays on one PC. [usebitl.com](https://usebitl.com) is the hos
 
 The local edition is free and open source (AGPL-3.0). usebitl.com is free during beta; paid plans will be announced at least 30 days ahead.
 
+## Contributing
+
+Bug reports and ideas are welcome in [Issues](https://github.com/usebitl/bitl/issues). For anything bigger than a small fix, please open an issue first so we can agree on the approach before you write code.
+
+Pull requests need a one-time [Contributor License Agreement](https://cla-assistant.io/usebitl/bitl). A bot asks you to sign it with your GitHub account when you open your first pull request. You keep the copyright to your work. The agreement lets BITL also use it under other licenses, for example in the hosted service at usebitl.com. The code in this repository stays under AGPL-3.0.
+
+This repository is exported from BITL's main development repository. An accepted pull request is applied there and arrives here with the next export instead of being merged directly. Your authorship is kept in a `Co-authored-by` line.
+
 ## License
 
 [GNU AGPL-3.0](LICENSE). If you run a modified version as a network service, you must offer its source to its users.
@@ -129,5 +137,7 @@ npx @usebitl/cli install claude   # 다른 터미널에서: Claude Code hook 등
 - hook 은 에이전트를 막거나 느리게 하지 않습니다. 서버가 꺼져 있으면 이벤트를 `~/.bitl/queue.jsonl` 에 쌓고 바로 돌아갑니다.
 - 질문·답변·명령은 PC 에서 암호화됩니다. 서버는 평문을 받지 않고, 키(`~/.bitl/key`)가 있는 브라우저만 내용을 봅니다.
 - 휴대폰·푸시 알림·여러 PC 는 [usebitl.com](https://usebitl.com) 에서 쓸 수 있습니다 (베타 기간 무료, 유료 전환은 적어도 30일 전에 알립니다).
+
+버그 제보와 아이디어는 [Issues](https://github.com/usebitl/bitl/issues) 에 남겨 주세요. 작은 수정보다 큰 변경은 코드를 쓰기 전에 이슈로 먼저 방향을 맞춰 주세요. 풀 리퀘스트는 처음 한 번 [기여자 라이선스 동의(CLA)](https://cla-assistant.io/usebitl/bitl) 가 필요합니다. 첫 PR 을 열면 봇이 GitHub 계정으로 동의를 요청합니다. 저작권은 기여자에게 남고, BITL 이 그 기여를 다른 라이선스로도(예: usebitl.com) 쓸 수 있게 됩니다. 이 저장소의 코드는 계속 AGPL-3.0 입니다. 이 저장소는 BITL 개발 저장소에서 내보낸 것이라, 받아들인 PR 은 개발 저장소에 반영된 뒤 다음 내보내기 때 들어옵니다 (직접 병합하지 않고, `Co-authored-by` 로 작성자를 남깁니다).
 
 라이선스는 [GNU AGPL-3.0](LICENSE) 입니다. 고친 버전을 네트워크 서비스로 운영하면 그 이용자에게 소스를 제공해야 합니다. "BITL" 이름과 로고는 usebitl.com 서비스를 가리키므로, 배포하는 포크에는 다른 이름과 로고를 써 주세요.

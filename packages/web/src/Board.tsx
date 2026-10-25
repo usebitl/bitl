@@ -502,7 +502,7 @@ function ThemeSwitch() {
             type="button"
             aria-pressed={theme === th}
             onClick={() => setTheme(th)}
-            className={`rounded-md px-2 py-0.5 text-xs ${theme === th ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'}`}
+            className={`rounded-md px-1.5 py-0.5 text-xs ${theme === th ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'}`}
           >
             {t(`theme.${th}`)}
           </button>

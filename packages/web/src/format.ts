@@ -3,12 +3,34 @@ import { t } from './i18n';
 
 /**
  * Prompt as shown in the instruction history. Claude Code also delivers notices that background work (subagents, shells) finished
- * as user prompts (UserPromptSubmit) — show a one-line label instead of the raw text (<task-notification>…).
+ * as user prompts (UserPromptSubmit) — show a one-line label instead of the raw text (<task-notification>…, <agent-message>…).
  */
 export function promptText(p: string | undefined): string | undefined {
+  if (agentReport(p) !== undefined) return `⚙ ${t('prompt.agentReport')}`;
   if (!p?.trimStart().startsWith('<task-notification>')) return p;
   const summary = /<summary>([\s\S]*?)<\/summary>/.exec(p)?.[1]?.trim();
   return `⚙ ${t('prompt.taskNotice')}${summary ? ` · ${summary}` : ''}`;
+}
+
+const REPORT_INTRO = 'The report follows:';
+
+/**
+ * A subagent's report, which Claude Code also delivers as a user prompt: `<agent-message from="…">`, a fixed preamble, then the
+ * report with every line indented. Returns the report itself (Markdown, indent removed) or undefined if the prompt isn't one.
+ * The stored prompt may be cut short, so the closing tag is optional.
+ */
+export function agentReport(p: string | undefined): string | undefined {
+  const m = /^\s*<agent-message\b[^>]*>([\s\S]*?)(?:<\/agent-message>[\s\S]*)?$/.exec(p ?? '');
+  if (!m) return undefined;
+  let body = m[1] ?? '';
+  const intro = body.indexOf(REPORT_INTRO);
+  if (intro >= 0) body = body.slice(intro + REPORT_INTRO.length);
+  const lines = body.split('\n');
+  const indent = Math.min(...lines.filter((l) => l.trim()).map((l) => /^ */.exec(l)![0].length));
+  return lines
+    .map((l) => l.slice(Number.isFinite(indent) ? indent : 0))
+    .join('\n')
+    .trim();
 }
 
 /** Elapsed time (duration only). Korean "방금 / 3분 / 2시간 5분 / 3일", English "just now / 3 min / 2 h 5 min / 3 d" */
