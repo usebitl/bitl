@@ -5,7 +5,7 @@ import type { Approval } from './approvals';
 import { setAppBadge, useOpenFromNotification } from './pwa';
 import { Logo } from './Logo';
 import { SessionCard } from './SessionCard';
-import { type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
+import { type DetailExtension, type DetailMode, SessionDetail, SIDE_PANEL_GUTTER } from './SessionDetail';
 import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
 import { BroomIcon, GlobeIcon, GoalAddIcon, JournalIcon, PaletteIcon } from './Icons';
@@ -162,6 +162,8 @@ export interface BoardProps {
   readonly?: boolean;
   /** Next to the logo (the cloud site's beta badge) */
   badge?: ReactNode;
+  /** Header buttons right after the add-goal button */
+  actions?: ReactNode;
   /** Notice line below the header */
   banners?: ReactNode;
   /** 🔒 notice. showWhenNoKeys: shown when there are no keys (default true); hint: trailing explanation (default: bitl pair instructions) */
@@ -172,13 +174,15 @@ export interface BoardProps {
   menu?: { items?: (close: () => void) => ReactNode; footer?: (close: () => void) => ReactNode; dot?: boolean };
   /** Dialogs opened over the board */
   overlays?: ReactNode;
+  /** Tabs and per-turn controls added to the card detail */
+  detail?: DetailExtension;
 }
 
 /** ☰ menu item style (shared by button and a) */
 export const MENU_ITEM = 'flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-zinc-700 active:bg-zinc-100 dark:text-zinc-200 dark:active:bg-zinc-800';
 export const MENU_ICON = 'size-[18px] text-zinc-500 dark:text-zinc-400';
 
-export function Board({ keys, enabled = true, readonly = false, badge, banners, lockedNotice, top, menu, overlays }: BoardProps) {
+export function Board({ keys, enabled = true, readonly = false, badge, actions, banners, lockedNotice, top, menu, overlays, detail }: BoardProps) {
   const { sessions, approvals, goals, connection } = useSessions(enabled ? keys : undefined);
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
@@ -287,6 +291,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           >
             <GoalAddIcon />
           </button>
+          {actions}
           <button
             type="button"
             disabled={!sessions.some((s) => !offBoard(s)) && goals.length === 0}
@@ -420,6 +425,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, banners, 
           approval={approvalFor.get(selected.key)}
           keys={keys}
           canEdit={canEdit}
+          extension={detail}
         />
       )}
     </div>

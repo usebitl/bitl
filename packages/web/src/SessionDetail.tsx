@@ -4,7 +4,7 @@ import { t, titleLabels } from './i18n';
 import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type Turn } from '@bitl/shared/session';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
 import { agentReport, localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
@@ -41,7 +41,7 @@ const Markdown = lazy(() => import('./Markdown'));
  * Agent response, rendered as Markdown (agents answer in it). Long ones are collapsed to about 12 lines and expanded with "Show all".
  * The PC adapter truncates at 10,000 characters (shared/prepare.ts TEXT_LIMIT), so responses hitting that limit are marked as truncated
  */
-function ResultText({ text }: { text: string }) {
+export function ResultText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -80,7 +80,7 @@ function ResultText({ text }: { text: string }) {
  * activity: what the session is doing right now (same as the card). Shown under the newest turn (turns are newest first)
  * while it has no response yet, so the panel isn't blank between the prompt and the answer
  */
-function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activity?: string }) {
+function TurnList({ turns, now, activity, turnAction }: { turns: Turn[]; now: number; activity?: string; turnAction?: (turn: Turn) => ReactNode }) {
   if (turns.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noTurns')}</p>;
   return (
     <ol className="space-y-4">
@@ -92,6 +92,7 @@ function TurnList({ turns, now, activity }: { turns: Turn[]; now: number; activi
               {t.status === 'running' ? msg('detail.turnRunning') : t.status === 'error' ? msg('detail.turnError') : msg('detail.turnDone')}
             </span>
             <span className="text-zinc-400">{msg('card.tools', { n: t.toolCount })}</span>
+            {turnAction && <span className="ml-auto">{turnAction(t)}</span>}
           </div>
           <p className="whitespace-pre-wrap break-words text-sm font-medium">{promptText(t.prompt) ?? msg('detail.noPrompt')}</p>
           {/* A subagent's report came in as the prompt: its text reads like a response, so it's shown like one */}
@@ -123,7 +124,21 @@ function ReaderIcon() {
  * Within a turn the prompt comes before its response. Responses are shown in full (no collapsing).
  * Esc closes only this view and returns to the detail.
  */
-function FocusView({ title, turns, now, activity, onClose }: { title: string; turns: Turn[]; now: number; activity?: string; onClose: () => void }) {
+function FocusView({
+  title,
+  turns,
+  now,
+  activity,
+  turnAction,
+  onClose,
+}: {
+  title: string;
+  turns: Turn[];
+  now: number;
+  activity?: string;
+  turnAction?: (turn: Turn) => ReactNode;
+  onClose: () => void;
+}) {
   // Capture phase on window runs before the detail's own Escape listener, so stopping here keeps the detail open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -158,6 +173,7 @@ function FocusView({ title, turns, now, activity, onClose }: { title: string; tu
             <li key={`${t.startedAt}-${i}`} className="space-y-4 py-8">
               <div className="flex flex-col items-end">
                 <div className="mb-1 flex items-center gap-2 text-xs">
+                  {turnAction?.(t)}
                   {t.status === 'error' && <span className="text-red-500">{msg('detail.turnError')}</span>}
                   <Time iso={t.startedAt} now={now} />
                 </div>
@@ -193,6 +209,33 @@ function FocusView({ title, turns, now, activity, onClose }: { title: string; tu
   );
 }
 
+/** What the detail knows, handed to plug-ins */
+export interface DetailContext {
+  session: Session;
+  turns: Turn[];
+  now: number;
+  /** Has keys and is not read-only */
+  canEdit: boolean;
+}
+
+/** What a plug-in adds to the detail */
+export interface DetailAddOns {
+  /** Extra tabs: placed right after the tab named in after, or at the end */
+  tabs?: { id: string; label: string; content: ReactNode; after?: string }[];
+  /** A control in each turn's header (prompts tab and focus view) */
+  turnAction?: (turn: Turn) => ReactNode;
+}
+
+/**
+ * Plugs things into the detail — local mode passes none. useAddOns is a hook: called on every render of the detail,
+ * so it must be the same function for the whole app
+ */
+export interface DetailExtension {
+  useAddOns: (ctx: DetailContext) => DetailAddOns;
+}
+
+const noAddOns = (): DetailAddOns => ({});
+
 interface Props {
   session: Session;
   now: number;
@@ -206,11 +249,12 @@ interface Props {
   keys?: ContentKeys | null;
   /** Can write entries (has keys, not read-only) */
   canEdit?: boolean;
+  extension?: DetailExtension;
 }
 
-export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys, canEdit = false }: Props) {
+export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys, canEdit = false, extension }: Props) {
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<'turns' | 'entries'>('turns');
+  const [tab, setTab] = useState('turns');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [focus, setFocus] = useState(false);
   const closeFocus = useCallback(() => setFocus(false), []);
@@ -253,6 +297,16 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const activity = session.status === 'running' || session.status === 'waiting_for_you' ? session.currentActivity : undefined;
   // number of other sessions waiting for you
   const othersWaiting = attentionCount - (session.status === 'waiting_for_you' || session.status === 'error' ? 1 : 0);
+  const useAddOns = extension?.useAddOns ?? noAddOns;
+  const addOns = useAddOns({ session, turns, now, canEdit });
+  const tabs: { id: string; label: string; content?: ReactNode }[] = [
+    { id: 'turns', label: msg('detail.tabTurns', { n: turns.length }) },
+    { id: 'entries', label: msg('detail.tabEntries', { n: entries.length }) },
+  ];
+  for (const extra of addOns.tabs ?? []) {
+    const at = tabs.findIndex((x) => x.id === extra.after);
+    tabs.splice(at < 0 ? tabs.length : at + 1, 0, extra);
+  }
 
   const panel = (
     <aside
@@ -327,12 +381,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
       {/* Turns / entries switch via tabs (same in wide view) */}
       <nav className="flex items-center border-b border-zinc-200 px-5 dark:border-zinc-800">
         <div className="flex min-w-0 gap-1">
-        {(
-          [
-            ['turns', msg('detail.tabTurns', { n: turns.length })],
-            ['entries', msg('detail.tabEntries', { n: entries.length })],
-          ] as const
-        ).map(([id, label]) => (
+        {tabs.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -357,14 +406,16 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
       </nav>
 
       <div className="min-h-0 flex-1">
-        {(['turns', 'entries'] as const).map((id) => (
+        {tabs.map(({ id, content }) => (
           <section
             key={id}
             className={['h-full overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]', tab === id ? '' : 'hidden'].join(' ')}
           >
             {/* Wide view: the body stays left-aligned with the tabs, at most about 900px so lines don't get too long */}
             <div className={wide ? 'max-w-[900px]' : undefined}>
-            {id === 'entries' ? (
+            {content !== undefined ? (
+              content
+            ) : id === 'entries' ? (
               <div className="space-y-4">
                 <EntryComposer sessionKey={session.key} where={where} canEdit={canEdit} placeholder={msg('entry.placeholderCard')} />
                 <EntryList entries={entries} now={now} canEdit={canEdit} empty={msg('entry.emptyCard')} />
@@ -372,7 +423,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             ) : !detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
             ) : (
-              <TurnList turns={turns} now={now} activity={activity} />
+              <TurnList turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} />
             )}
             </div>
           </section>
@@ -400,7 +451,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   );
 
   const focusView = focus && (
-    <FocusView title={displayTitle(session, titleLabels())} turns={turns} now={now} activity={activity} onClose={closeFocus} />
+    <FocusView title={displayTitle(session, titleLabels())} turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} onClose={closeFocus} />
   );
 
   if (wide) {

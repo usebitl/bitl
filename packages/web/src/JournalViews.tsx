@@ -105,7 +105,13 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Keep the board behind from scrolling along
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+    };
   }, [onClose]);
 
   const goal = goals.find((g) => g.id === goalId);
@@ -147,31 +153,30 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
   );
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-zinc-50 dark:bg-[#0b0d12]" role="dialog" aria-modal="true" aria-labelledby="journal-title">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-zinc-50/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:px-6 dark:border-zinc-800 dark:bg-[#0b0d12]/90">
-        <button type="button" onClick={onClose} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          {t('journal.back')}
-        </button>
-        <h1 id="journal-title" className="text-lg font-bold">
+    // Same frame as the focus view: an opaque layer over the whole window (themes make the page color translucent), closed at the top right
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950" role="dialog" aria-modal="true" aria-labelledby="journal-title">
+      <header className="flex items-center gap-3 border-b border-zinc-200 px-5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800">
+        <h1 id="journal-title" className="min-w-0 flex-1 truncate font-semibold">
           {t('journal.title')}
         </h1>
         <button
           type="button"
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((v) => !v)}
-          className="ml-auto h-10 rounded-lg border border-zinc-300 px-3 text-sm lg:hidden dark:border-zinc-700"
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm lg:hidden dark:border-zinc-700"
         >
           {t('journal.filters')}
         </button>
+        <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+          {t('detail.focusClose')}
+        </button>
       </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-[1200px] gap-8 px-4 py-5 sm:px-6">
         <main className="min-w-0 flex-1 space-y-4 pb-72 lg:pb-8">
           {filtersOpen && <div className="rounded-xl border border-zinc-200 bg-white p-4 lg:hidden dark:border-zinc-800 dark:bg-zinc-900">{filters}</div>}
           {/* On a phone the composer sits at the bottom, within thumb reach */}
-          <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-zinc-50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:border-0 lg:bg-transparent lg:p-0 dark:border-zinc-800 dark:bg-[#0b0d12] lg:dark:bg-transparent">
+          <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:border-0 lg:bg-transparent lg:p-0 dark:border-zinc-800 dark:bg-zinc-950 lg:dark:bg-transparent">
             {goals.length > 0 && (
               <div className="mb-2 flex items-center gap-2">
                 <label htmlFor="journal-link-goal" className="text-xs text-zinc-500">
@@ -201,8 +206,9 @@ export function Journal({ goals, sessions, now, canEdit, onClose }: { goals: Goa
           {more && <MoreButton onClick={loadMore} />}
         </main>
         <aside className="hidden w-64 shrink-0 lg:block">
-          <div className="sticky top-24">{filters}</div>
+          <div className="sticky top-5">{filters}</div>
         </aside>
+      </div>
       </div>
     </div>
   );
