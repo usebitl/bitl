@@ -7,9 +7,30 @@ import { t } from './i18n';
  */
 export function promptText(p: string | undefined): string | undefined {
   if (agentReport(p) !== undefined) return `⚙ ${t('prompt.agentReport')}`;
-  if (!p?.trimStart().startsWith('<task-notification>')) return p;
+  // The <pasted_content> wrapper around pasted text is markup, not what the user wrote
+  if (!p?.trimStart().startsWith('<task-notification>')) return p?.replace(/<\/?pasted_content\b[^>]*>/g, '');
   const summary = /<summary>([\s\S]*?)<\/summary>/.exec(p)?.[1]?.trim();
   return `⚙ ${t('prompt.taskNotice')}${summary ? ` · ${summary}` : ''}`;
+}
+
+const BOX_DRAWING = /[─-╿]/;
+
+export interface PromptPart {
+  /** Lines of a table drawn with box characters (pasted from a terminal): shown monospace and unwrapped so the columns line up */
+  pre: boolean;
+  text: string;
+}
+
+/** Splits prompt text (from promptText) into plain text and box-drawing tables */
+export function promptParts(p: string): PromptPart[] {
+  const parts: PromptPart[] = [];
+  for (const line of p.split('\n')) {
+    const pre = BOX_DRAWING.test(line);
+    const last = parts.at(-1);
+    if (last?.pre === pre) last.text += `\n${line}`;
+    else parts.push({ pre, text: line });
+  }
+  return parts.map((x) => ({ ...x, text: x.pre ? x.text : x.text.replace(/^\n+|\n+$/g, '') })).filter((x) => x.text.trim());
 }
 
 const REPORT_INTRO = 'The report follows:';

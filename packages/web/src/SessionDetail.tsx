@@ -6,7 +6,7 @@ import type { Approval } from './approvals';
 import { displayTitle, type Session, type Turn } from '@bitl/shared/session';
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
-import { agentReport, localDateTime, localTime, promptText, resumeCommand, SOURCE_LABEL } from './format';
+import { agentReport, localDateTime, localTime, promptParts, promptText, resumeCommand, SOURCE_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
 import { writeEntry } from './entries';
 import { EntryComposer, EntryList, useEntries } from './EntryViews';
@@ -76,6 +76,26 @@ export function ResultText({ text }: { text: string }) {
   );
 }
 
+/** The prompt as typed. Tables drawn with box characters keep their columns: monospace, unwrapped, scrolling sideways when too wide */
+export function PromptBody({ text, className = '' }: { text: string; className?: string }) {
+  return (
+    <div className={`min-w-0 break-words ${className}`}>
+      {promptParts(text).map((part, i) =>
+        part.pre ? (
+          // Line height near 1 so the vertical box lines join up between rows
+          <pre key={i} className="my-1.5 overflow-x-auto font-mono text-xs font-normal leading-[1.15]">
+            {part.text}
+          </pre>
+        ) : (
+          <p key={i} className="whitespace-pre-wrap">
+            {part.text}
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
 /**
  * activity: what the session is doing right now (same as the card). Shown under the newest turn (turns are newest first)
  * while it has no response yet, so the panel isn't blank between the prompt and the answer
@@ -94,7 +114,7 @@ function TurnList({ turns, now, activity, turnAction }: { turns: Turn[]; now: nu
             <span className="text-zinc-400">{msg('card.tools', { n: t.toolCount })}</span>
             {turnAction && <span className="ml-auto">{turnAction(t)}</span>}
           </div>
-          <p className="whitespace-pre-wrap break-words text-sm font-medium">{promptText(t.prompt) ?? msg('detail.noPrompt')}</p>
+          <PromptBody text={promptText(t.prompt) ?? msg('detail.noPrompt')} className="text-sm font-medium" />
           {/* A subagent's report came in as the prompt: its text reads like a response, so it's shown like one */}
           {agentReport(t.prompt) && <ResultText text={agentReport(t.prompt)!} />}
           {t.result && <ResultText text={t.result} />}
@@ -177,9 +197,10 @@ function FocusView({
                   {t.status === 'error' && <span className="text-red-500">{msg('detail.turnError')}</span>}
                   <Time iso={t.startedAt} now={now} />
                 </div>
-                <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800">
-                  {promptText(t.prompt) ?? msg('detail.noPrompt')}
-                </p>
+                <PromptBody
+                  text={promptText(t.prompt) ?? msg('detail.noPrompt')}
+                  className="max-w-[85%] rounded-2xl rounded-tr-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800"
+                />
               </div>
               {agentReport(t.prompt) && (
                 <div className="break-words border-l-2 border-zinc-200 pl-4 text-[0.9375rem] leading-relaxed text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">

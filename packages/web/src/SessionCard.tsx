@@ -1,6 +1,6 @@
 import type { ContentKeys } from '@bitl/shared/client';
 import { displayTitle, type Session } from '@bitl/shared/session';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ApprovalBox } from './ApprovalBox';
 import { deleteSession, postAction, reportManual } from './api';
 import type { Approval } from './approvals';
@@ -157,6 +157,7 @@ export function SessionCard({
   keys,
   goals,
   onNewGoal,
+  extra,
 }: {
   s: Session;
   now: number;
@@ -169,6 +170,8 @@ export function SessionCard({
   goals?: Goal[];
   /** Create a new goal containing this card */
   onNewGoal?: () => void;
+  /** Added below the card's text (Board's cardExtra) */
+  extra?: ReactNode;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const urgent = s.status === 'waiting_for_you' && minutesSince(s.statusAt, now) >= 5;
@@ -241,6 +244,7 @@ export function SessionCard({
         )}
         {s.note && <p className="mt-1.5 line-clamp-2 text-xs text-sky-700 dark:text-sky-400">📝 {s.note}</p>}
       </button>
+      {extra}
       {/* Meta row with the ack button at its end. The meta part may be hidden by a theme (Zen); the button stays */}
       {s.source !== 'manual' && (
         <div className="mt-2 flex items-center gap-2">

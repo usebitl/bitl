@@ -176,13 +176,15 @@ export interface BoardProps {
   overlays?: ReactNode;
   /** Tabs and per-turn controls added to the card detail */
   detail?: DetailExtension;
+  /** Extra line on each card, below its text (may hold links, so it sits outside the card's open button) */
+  cardExtra?: (s: Session) => ReactNode;
 }
 
 /** ☰ menu item style (shared by button and a) */
 export const MENU_ITEM = 'flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-zinc-700 active:bg-zinc-100 dark:text-zinc-200 dark:active:bg-zinc-800';
 export const MENU_ICON = 'size-[18px] text-zinc-500 dark:text-zinc-400';
 
-export function Board({ keys, enabled = true, readonly = false, badge, actions, banners, lockedNotice, top, menu, overlays, detail }: BoardProps) {
+export function Board({ keys, enabled = true, readonly = false, badge, actions, banners, lockedNotice, top, menu, overlays, detail, cardExtra }: BoardProps) {
   const { sessions, approvals, goals, connection } = useSessions(enabled ? keys : undefined);
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
@@ -363,6 +365,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
                   keys={keys}
                   goals={canEdit || goals.length ? goals : undefined}
                   onNewGoal={canEdit ? () => setGoalDialog({ preselect: [s.key] }) : undefined}
+                  extra={cardExtra?.(s)}
                 />
               ))}
               {byColumn[col.id].length === 0 && (
