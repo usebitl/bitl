@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { open, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { AgentEvent } from '../events.js';
@@ -12,6 +12,8 @@ import { resumedFromFor } from './resume.js';
 
 const BRANCH_TTL_MS = 60_000;
 const MAX_TRANSCRIPT_BYTES = 20 * 1024 * 1024;
+// Claude Code re-appends the current title records as the transcript grows, so the tail always holds the latest one
+const TITLE_TAIL_BYTES = 8 * 1024 * 1024;
 const branchCache = new Map<string, { at: number; branch?: string }>();
 
 export function gitBranch(cwd: string): Promise<string | undefined> {
@@ -28,12 +30,11 @@ export function gitBranch(cwd: string): Promise<string | undefined> {
 
 /**
  * Session title from the Claude Code transcript: the last custom-title record (the user's /rename) wins,
- * otherwise the last ai-title record (auto-generated)
+ * otherwise the last ai-title record (auto-generated). Long transcripts (tens of MB) are read from the tail only
  */
-export async function titleFromTranscript(path: string): Promise<string | undefined> {
+export async function titleFromTranscript(path: string, tailBytes = TITLE_TAIL_BYTES): Promise<string | undefined> {
   try {
-    if ((await stat(path)).size > MAX_TRANSCRIPT_BYTES) return undefined;
-    const text = await readFile(path, 'utf8');
+    const text = await readTail(path, tailBytes);
     let aiTitle: string | undefined;
     let customTitle: string | undefined;
     for (const line of text.split('\n')) {
@@ -43,12 +44,26 @@ export async function titleFromTranscript(path: string): Promise<string | undefi
         if (rec.type === 'ai-title' && rec.aiTitle) aiTitle = rec.aiTitle;
         if (rec.type === 'custom-title' && rec.customTitle?.trim()) customTitle = rec.customTitle.trim();
       } catch {
-        // may be the last line still being written
+        // may be the last line still being written, or the first line cut by the tail read
       }
     }
     return customTitle ?? aiTitle;
   } catch {
     return undefined;
+  }
+}
+
+/** The last `bytes` of a file (the whole file if smaller) */
+async function readTail(path: string, bytes: number): Promise<string> {
+  const file = await open(path, 'r');
+  try {
+    const { size } = await file.stat();
+    const start = Math.max(0, size - bytes);
+    const buf = Buffer.alloc(size - start);
+    await file.read(buf, 0, buf.length, start);
+    return buf.toString('utf8');
+  } finally {
+    await file.close();
   }
 }
 

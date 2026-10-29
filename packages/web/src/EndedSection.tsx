@@ -21,7 +21,7 @@ const readOpen = () => {
   }
 };
 
-const CHIP: Record<Session['source'], string> = {
+export const SOURCE_CHIP: Record<Session['source'], string> = {
   'claude-code': 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300',
   codex: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300',
   antigravity: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
@@ -138,7 +138,7 @@ export function EndedSection({
                 className="grid gap-0.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-left opacity-85 hover:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/70"
               >
                 <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <span className={`shrink-0 rounded px-1.5 font-medium ${CHIP[s.source]}`}>{SOURCE_LABEL[s.source]}</span>
+                  <span className={`shrink-0 rounded px-1.5 font-medium ${SOURCE_CHIP[s.source]}`}>{SOURCE_LABEL[s.source]}</span>
                   <span className="min-w-0 truncate font-mono">
                     {s.project ?? ''}
                     {s.gitBranch ? `@${s.gitBranch}` : ''}

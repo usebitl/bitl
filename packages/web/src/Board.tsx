@@ -10,6 +10,7 @@ import { type Connection, useNow, useSessions } from './useSessions';
 import { rich, t } from './i18n';
 import { BroomIcon, GlobeIcon, GoalAddIcon, JournalIcon, PaletteIcon } from './Icons';
 import { EndedSection } from './EndedSection';
+import { RestList } from './RestList';
 import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, useGoalsFollowResume } from './GoalViews';
 import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
@@ -26,6 +27,7 @@ const COLUMNS: { id: BoardColumn; dot: string }[] = [
   { id: 'review', dot: 'bg-amber-400' },
   { id: 'rest', dot: 'bg-zinc-400' },
 ];
+const WORK_COLUMNS = COLUMNS.filter((c) => c.id !== 'rest');
 
 /**
  * Not on the board: archived, swept off by "Clear" (until the agent acts again), continued in another session
@@ -344,9 +346,11 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
         </section>
       ) : (
       <>
+      {/* Three work columns; idle sessions only need finding, so they get a narrow rail beside them (rows below on narrow boards) */}
       <main className="@container">
-        <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @5xl:grid-cols-4">
-        {COLUMNS.map((col) => (
+        <div className="grid grid-cols-1 gap-4 @5xl:grid-cols-[minmax(0,1fr)_15rem]">
+        <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-3">
+        {WORK_COLUMNS.map((col) => (
           <section key={col.id} className="min-w-0">
             <h2 className="bitl-col-title mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
               <span className={`size-2.5 rounded-full ${col.dot}`} />
@@ -374,6 +378,14 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
             </div>
           </section>
         ))}
+        </div>
+        <RestList
+          sessions={byColumn.rest}
+          now={now}
+          selectedKey={selectedKey}
+          onOpen={select}
+          empty={activeGoal ? t('goal.emptyCol') : t('app.col.rest.empty')}
+        />
         </div>
       </main>
 

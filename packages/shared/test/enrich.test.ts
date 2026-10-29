@@ -45,6 +45,12 @@ describe('titleFromTranscript', () => {
     expect(await titleFromTranscript(file)).toBe('hello world');
   });
 
+  it('long transcripts: reads the tail only, so a title past the size limit still counts', async () => {
+    const filler = { type: 'assistant', text: 'x'.repeat(200) };
+    const file = transcript({ type: 'custom-title', customTitle: 'old name' }, ...Array(50).fill(filler), { type: 'custom-title', customTitle: 'new name' }, filler);
+    expect(await titleFromTranscript(file, 1024)).toBe('new name');
+  });
+
   it('undefined when there is no title or the file is missing', async () => {
     expect(await titleFromTranscript(transcript({ type: 'user' }))).toBeUndefined();
     expect(await titleFromTranscript(join(tmpdir(), 'no-such-transcript.jsonl'))).toBeUndefined();
