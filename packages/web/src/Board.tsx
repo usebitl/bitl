@@ -231,6 +231,8 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
     for (const col of COLUMNS) map[col.id].sort(sortFor(col.id));
     return map;
   }, [sessions, activeGoal]);
+  // "Waiting on you" shows up only while something waits; without it the other two keep their three-column width, centered
+  const workColumns = byColumn.attention.length ? WORK_COLUMNS : WORK_COLUMNS.filter((c) => c.id !== 'attention');
   const ended = useMemo(() => {
     const members = activeGoal ? new Set(activeGoal.members) : null;
     return sessions
@@ -346,11 +348,11 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
         </section>
       ) : (
       <>
-      {/* Three work columns; idle sessions only need finding, so they get a narrow rail beside them (rows below on narrow boards) */}
+      {/* Work columns ("waiting on you" only while it has cards); idle sessions only need finding, so they get a narrow rail beside them (rows below on narrow boards) */}
       <main className="@container">
         <div className="grid grid-cols-1 gap-4 @5xl:grid-cols-[minmax(0,1fr)_15rem]">
-        <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-3">
-        {WORK_COLUMNS.map((col) => (
+        <div className={`grid grid-cols-1 gap-4 ${workColumns.length === 3 ? '@3xl:grid-cols-3' : '@3xl:grid-cols-[repeat(2,calc((100%-2rem)/3))] @3xl:justify-center'}`}>
+        {workColumns.map((col) => (
           <section key={col.id} className="min-w-0">
             <h2 className="bitl-col-title mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
               <span className={`size-2.5 rounded-full ${col.dot}`} />

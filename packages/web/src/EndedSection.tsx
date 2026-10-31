@@ -135,7 +135,7 @@ export function EndedSection({
                 key={s.key}
                 type="button"
                 onClick={() => onOpen(s.key)}
-                className="grid gap-0.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-left opacity-85 hover:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/70"
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-left opacity-85 hover:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/70"
               >
                 <span className="flex items-center gap-1.5 text-xs text-zinc-500">
                   <span className={`shrink-0 rounded px-1.5 font-medium ${SOURCE_CHIP[s.source]}`}>{SOURCE_LABEL[s.source]}</span>

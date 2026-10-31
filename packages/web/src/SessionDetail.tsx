@@ -19,9 +19,9 @@ import { EntryComposer, EntryList, useEntries } from './EntryViews';
  */
 export type DetailMode = 'side' | 'wide';
 
-/** side panel width — App reserves the same right padding on the board */
-export const SIDE_PANEL_CLASS = 'sm:w-[34rem]';
-export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem]'; // panel width + 1.5rem gap
+/** side panel width (wider on large screens, where the narrow idle rail leaves room) — App reserves the same right padding on the board */
+export const SIDE_PANEL_CLASS = 'sm:w-[34rem] 2xl:w-[42rem]';
+export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem] 2xl:pr-[43.5rem]'; // panel width + 1.5rem gap
 
 /** UI strings. Named msg because this file often uses t for turns */
 const msg = t;

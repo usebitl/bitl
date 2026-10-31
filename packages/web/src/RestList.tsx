@@ -22,7 +22,7 @@ export function RestList({
   empty: string;
 }) {
   return (
-    <section aria-label={t('app.col.rest')} className="bitl-rest min-w-0 @5xl:border-l @5xl:border-zinc-200 @5xl:pl-4 @5xl:dark:border-zinc-800">
+    <section aria-label={t('app.col.rest')} className="bitl-rest min-w-0 @5xl:self-start @5xl:border-l @5xl:border-zinc-200 @5xl:pl-4 @5xl:dark:border-zinc-800">
       <h2 className="bitl-col-title mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-600 dark:text-zinc-300">
         <span className="size-2.5 rounded-full bg-zinc-400" />
         {t('app.col.rest')}
@@ -38,7 +38,7 @@ export function RestList({
               type="button"
               aria-current={s.key === selectedKey || undefined}
               onClick={() => onOpen(s.key)}
-              className={`grid min-h-11 gap-0.5 rounded-lg px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/70 ${
+              className={`grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/70 ${
                 s.key === selectedKey ? 'bg-zinc-100 ring-1 ring-zinc-300 dark:bg-zinc-800/70 dark:ring-zinc-700' : ''
               }`}
             >
