@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { AgentEvent, normalizeAntigravity, normalizeCodexNotify, normalizeHook, normalizeReport } from '../src/index.js';
+import { AgentEvent, normalizeAntigravity, normalizeCodexNotify, normalizeHook, normalizeReport, parseQuestions, questionsOf } from '../src/index.js';
 import { describeDumpRecords } from './dump-records.js';
 
 const AT = '2026-09-26T00:00:00.000Z';
@@ -160,6 +160,19 @@ describe('tools that wait for a user reply', () => {
       at,
     );
     expect(e).toMatchObject({ type: 'waiting', waitingReason: 'question', tool: { name: 'AskUserQuestion', summary: '어느 DB 를 쓸까요?' } });
+    expect(parseQuestions(e?.text)).toEqual([{ question: '어느 DB 를 쓸까요?', options: [{ label: 'SQLite' }] }]);
+  });
+
+  it('questionsOf keeps headers, multi-select and option descriptions, and drops empty entries', () => {
+    const qs = questionsOf({
+      questions: [
+        { header: 'DB', question: '어느 DB?', multiSelect: true, options: [{ label: 'A', description: '빠름' }, { label: '' }] },
+        { question: '' },
+      ],
+    });
+    expect(qs).toEqual([{ header: 'DB', question: '어느 DB?', multiSelect: true, options: [{ label: 'A', description: '빠름' }] }]);
+    expect(questionsOf({})).toBeUndefined();
+    expect(parseQuestions('[{"question":"cut')).toBeUndefined();
   });
 
   it('ExitPlanMode start → waiting(plan)', () => {

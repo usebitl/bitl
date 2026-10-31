@@ -51,6 +51,7 @@ export const SESSION_CONTENT_FIELDS = [
   'gitBranch',
   'model',
   'note', // a note left by the user
+  'question', // while waiting on AskUserQuestion: the questions and options as JSON (PendingQuestion[])
 ] as const;
 export type SessionContentField = (typeof SESSION_CONTENT_FIELDS)[number];
 

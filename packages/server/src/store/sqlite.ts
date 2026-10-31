@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { APPROVAL_SCHEMA } from './approval-store.js';
+import { APPROVAL_ADDED_COLUMNS, APPROVAL_SCHEMA } from './approval-store.js';
 import { ENTRY_SCHEMA } from './entry-store.js';
 import { GOAL_SCHEMA } from './goal-store.js';
 import { PUSH_SCHEMA } from './push-store.js';
@@ -161,7 +161,7 @@ export function openSqliteStore(path: string, extension?: SchemaExtension): SqlS
   db.exec(SCHEMA);
   if (extension) db.exec(extension.schema);
   // Columns added after the initial schema (added to existing tables)
-  for (const [table, column, type] of extension?.addedColumns ?? []) {
+  for (const [table, column, type] of [...APPROVAL_ADDED_COLUMNS, ...(extension?.addedColumns ?? [])]) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }

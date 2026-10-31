@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS approvals (
   sig         TEXT,
   created_at  TEXT NOT NULL,
   expires_at  TEXT NOT NULL,
-  decided_at  TEXT
+  decided_at  TEXT,
+  answer      TEXT
 );
 CREATE INDEX IF NOT EXISTS approvals_account ON approvals(account_id, status);
 
@@ -28,6 +29,9 @@ CREATE TABLE IF NOT EXISTS account_prefs (
   updated_at TEXT NOT NULL
 );
 `;
+
+/** Columns added after the table was first made (ALTER TABLE on existing DBs — sqlite.ts, postgres.ts) */
+export const APPROVAL_ADDED_COLUMNS: [table: string, column: string, type: string][] = [['approvals', 'answer', 'TEXT']];
 
 /** pending → allow | deny (phone's decision) | cancelled (PC stopped waiting) | expired */
 export type ApprovalStatus = 'pending' | 'allow' | 'deny' | 'cancelled' | 'expired';
@@ -40,6 +44,8 @@ export interface Approval {
   status: ApprovalStatus;
   /** Phone's signature (for allow/deny) */
   sig?: string;
+  /** A question's answers, sealed by the phone (covered by the signature) */
+  answer?: string;
   createdAt: string;
   expiresAt: string;
   decidedAt?: string;
@@ -58,12 +64,13 @@ const toApproval = (r: Row): Approval => ({
   request: r.request as string,
   status: r.status as ApprovalStatus,
   sig: (r.sig as string | null) ?? undefined,
+  answer: (r.answer as string | null) ?? undefined,
   createdAt: r.created_at as string,
   expiresAt: r.expires_at as string,
   decidedAt: (r.decided_at as string | null) ?? undefined,
 });
 
-const COLUMNS = 'id, session_key, request, status, sig, created_at, expires_at, decided_at';
+const COLUMNS = 'id, session_key, request, status, sig, answer, created_at, expires_at, decided_at';
 
 export class ApprovalStore {
   private readonly listeners = new Set<(c: ApprovalChange) => void>();
@@ -140,12 +147,19 @@ export class ApprovalStore {
    * Only changes pending requests (first decision wins). Returns the updated request, or undefined.
    * Decisions (allow/deny) are accepted only before expiry.
    */
-  async settle(accountId: string, id: string, to: Exclude<ApprovalStatus, 'pending'>, sig?: string, now = new Date()): Promise<Approval | undefined> {
+  async settle(
+    accountId: string,
+    id: string,
+    to: Exclude<ApprovalStatus, 'pending'>,
+    sig?: string,
+    now = new Date(),
+    answer?: string,
+  ): Promise<Approval | undefined> {
     const decided = to === 'allow' || to === 'deny';
     const { changes } = await this.db.transaction((q) =>
       q(
-        `UPDATE approvals SET status = ?, sig = ?, decided_at = ? WHERE account_id = ? AND id = ? AND status = 'pending'${decided ? ' AND expires_at > ?' : ''}`,
-        [to, sig ?? null, now.toISOString(), accountId, id, ...(decided ? [now.toISOString()] : [])],
+        `UPDATE approvals SET status = ?, sig = ?, answer = ?, decided_at = ? WHERE account_id = ? AND id = ? AND status = 'pending'${decided ? ' AND expires_at > ?' : ''}`,
+        [to, sig ?? null, answer ?? null, now.toISOString(), accountId, id, ...(decided ? [now.toISOString()] : [])],
       ),
     );
     if (!changes) return undefined;

@@ -3,7 +3,7 @@
 // Must match the version in cli/npm/package.json — checked by test/release.test.ts.
 
 /** Current latest version on npm */
-export const CLI_LATEST = '0.1.31';
+export const CLI_LATEST = '0.1.32';
 
 /**
  * Mandatory update version (server format change, security issue). If any PC is below `below`, a notice is shown at the top of the screen.

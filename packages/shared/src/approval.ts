@@ -3,10 +3,11 @@
 // The server only relays and must not be able to forge an approval — even if the server is compromised, no command may run on the PC.
 //   - The request content (tool/command) is sealed by the PC with the account key. AAD = approval id → the server can't swap in another request's content
 //   - The decision (allow/deny) is signed by the phone with a separate approval key derived from the account key (HMAC, includes the approval id) → the server can't produce a signature
+//   - A question's answer (AskUserQuestion) is sealed by the phone (AAD = approval id) and covered by the decision signature → the server can neither read nor swap it
 //   - The PC only follows decisions whose signature checks out. Otherwise it falls back to the terminal's approval prompt
 // The PC creates a new approval id per request — a past approval's signature can't be reused for another request.
 import { type ContentKeys, fromBase64Url, open, seal, toBase64Url, type Sealed } from './crypto.js';
-import { oneLine, summarizeToolInput } from './normalize.js';
+import { oneLine, type PendingQuestion, questionsOf, summarizeToolInput } from './normalize.js';
 
 export type ApprovalDecision = 'allow' | 'deny';
 export const APPROVAL_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
@@ -23,7 +24,12 @@ export interface ApprovalRequest {
   description?: string;
   project?: string;
   cwd?: string;
+  /** AskUserQuestion: the questions to answer — the phone sends back an answer per question instead of a plain allow */
+  questions?: PendingQuestion[];
 }
+
+/** Answer per question text (AskUserQuestion's answers input). Several picks are joined with ", " */
+export type ApprovalAnswers = Record<string, string>;
 
 const MAX_DETAIL = 4000;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -48,16 +54,20 @@ export function describeToolRequest(toolName: string, input: unknown, extra: { p
     detail = body ? `${i.file_path}\n\n${body}` : i.file_path;
   } else if (typeof i.plan === 'string') detail = i.plan;
   else if (Object.keys(i).length) detail = JSON.stringify(i, null, 2);
+  const questions = toolName === 'AskUserQuestion' ? questionsOf(i) : undefined;
+  if (questions) detail = undefined;
   return {
     tool: toolName,
     summary: oneLine(short ? `${toolName}: ${short}` : toolName, 200),
     detail: detail ? clip(detail, MAX_DETAIL) : undefined,
     description: str(i.description) ? oneLine(String(i.description), 300) : undefined,
+    ...(questions ? { questions } : {}),
     ...extra,
   };
 }
 
 const aad = (id: string) => `approval:${id}`;
+const answerAad = (id: string) => `approval:${id}:answer`;
 
 export const sealApprovalRequest = (keys: ContentKeys, id: string, req: ApprovalRequest): Promise<Sealed> => seal(keys, JSON.stringify(req), aad(id));
 
@@ -65,6 +75,17 @@ export async function openApprovalRequest(keys: ContentKeys, id: string, sealed:
   const req = JSON.parse(await open(keys, sealed, aad(id))) as ApprovalRequest;
   if (typeof req?.tool !== 'string' || typeof req.summary !== 'string') throw new Error('invalid approval request');
   return req;
+}
+
+/** Phone: seals the answers to a question request */
+export const sealApprovalAnswer = (keys: ContentKeys, id: string, answers: ApprovalAnswers): Promise<Sealed> =>
+  seal(keys, JSON.stringify(answers), answerAad(id));
+
+/** PC: opens the answers (after the signature over them has been verified) */
+export async function openApprovalAnswer(keys: ContentKeys, id: string, sealed: Sealed): Promise<ApprovalAnswers> {
+  const answers = JSON.parse(await open(keys, sealed, answerAad(id))) as unknown;
+  if (!answers || typeof answers !== 'object' || Object.values(answers).some((v) => typeof v !== 'string')) throw new Error('invalid answer');
+  return answers as ApprovalAnswers;
 }
 
 // Approval signing key: derived from the account (master) key with a separate purpose, so it never mixes with the other HMAC (tag)
@@ -88,16 +109,18 @@ function approvalKey(keys: ContentKeys): Promise<CryptoKey> {
   return k;
 }
 
-const message = (id: string, decision: ApprovalDecision) => new TextEncoder().encode(`bitl/approval/v1\n${id}\n${decision}`);
+/** The signed message. A sealed answer is part of it, so the server can't attach a different one */
+const message = (id: string, decision: ApprovalDecision, answer?: string) =>
+  new TextEncoder().encode(`bitl/approval/v1\n${id}\n${decision}${answer ? `\n${answer}` : ''}`);
 
-/** Phone (browser): signs the decision */
-export async function signDecision(keys: ContentKeys, id: string, decision: ApprovalDecision): Promise<string> {
-  const mac = await globalThis.crypto.subtle.sign('HMAC', await approvalKey(keys), message(id, decision));
+/** Phone (browser): signs the decision (and the sealed answer, if any) */
+export async function signDecision(keys: ContentKeys, id: string, decision: ApprovalDecision, answer?: string): Promise<string> {
+  const mac = await globalThis.crypto.subtle.sign('HMAC', await approvalKey(keys), message(id, decision, answer));
   return toBase64Url(new Uint8Array(mac));
 }
 
 /** PC (hook): checks the decision was signed with this account key (constant-time comparison) */
-export async function verifyDecision(keys: ContentKeys, id: string, decision: string, sig: string): Promise<boolean> {
+export async function verifyDecision(keys: ContentKeys, id: string, decision: string, sig: string, answer?: string): Promise<boolean> {
   if ((decision !== 'allow' && decision !== 'deny') || !APPROVAL_SIG_PATTERN.test(sig)) return false;
-  return globalThis.crypto.subtle.verify('HMAC', await approvalKey(keys), fromBase64Url(sig), message(id, decision));
+  return globalThis.crypto.subtle.verify('HMAC', await approvalKey(keys), fromBase64Url(sig), message(id, decision, answer));
 }

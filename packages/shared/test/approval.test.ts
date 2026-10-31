@@ -3,7 +3,9 @@ import {
   APPROVAL_ID_PATTERN,
   describeToolRequest,
   newApprovalId,
+  openApprovalAnswer,
   openApprovalRequest,
+  sealApprovalAnswer,
   sealApprovalRequest,
   signDecision,
   verifyDecision,
@@ -39,6 +41,12 @@ describe('sealing approval requests', () => {
     expect(describeToolRequest('mcp__db__query', { sql: 'select 1' }).detail).toContain('"sql": "select 1"');
     expect(describeToolRequest('Bash', { command: 'x'.repeat(10_000) }).detail!.length).toBeLessThanOrEqual(4000);
   });
+
+  it('a question carries its questions and options instead of a JSON detail', () => {
+    const req = describeToolRequest('AskUserQuestion', { questions: [{ question: 'Which DB?', options: [{ label: 'SQLite', description: 'file' }] }] });
+    expect(req).toMatchObject({ summary: 'AskUserQuestion: Which DB?', questions: [{ question: 'Which DB?', options: [{ label: 'SQLite', description: 'file' }] }] });
+    expect(req.detail).toBeUndefined();
+  });
 });
 
 describe('decision signatures', () => {
@@ -52,6 +60,20 @@ describe('decision signatures', () => {
     expect(await verifyDecision(keysA, newApprovalId(), 'allow', sig)).toBe(false);
     expect(await verifyDecision(keysA, id, 'allow', 'A'.repeat(43))).toBe(false);
     expect(await verifyDecision(keysA, id, 'maybe', sig)).toBe(false);
+  });
+
+  it("a question's answer is sealed per approval and covered by the signature — the server can neither read nor swap it", async () => {
+    const id = newApprovalId();
+    const answer = await sealApprovalAnswer(keysA, id, { 'Which DB?': 'SQLite' });
+    expect(answer).not.toContain('SQLite');
+    expect(await openApprovalAnswer(keysA, id, answer)).toEqual({ 'Which DB?': 'SQLite' });
+    await expect(openApprovalAnswer(keysA, newApprovalId(), answer)).rejects.toThrow();
+
+    const sig = await signDecision(keysA, id, 'allow', answer);
+    expect(await verifyDecision(keysA, id, 'allow', sig, answer)).toBe(true);
+    const other = await sealApprovalAnswer(keysA, id, { 'Which DB?': 'Postgres' });
+    expect(await verifyDecision(keysA, id, 'allow', sig, other)).toBe(false);
+    expect(await verifyDecision(keysA, id, 'allow', sig)).toBe(false);
   });
 
   it('the approval key differs from the content tag key — the server cannot forge approvals from tags it has seen', async () => {

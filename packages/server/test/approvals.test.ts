@@ -1,4 +1,4 @@
-import { newApprovalId, sealApprovalRequest, describeToolRequest, signDecision, verifyDecision } from '@bitl/shared/client';
+import { newApprovalId, sealApprovalAnswer, sealApprovalRequest, describeToolRequest, signDecision, verifyDecision } from '@bitl/shared/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeApprovalsOnResume } from '../src/approvals-api.js';
 import { createApp } from '../src/app.js';
@@ -60,6 +60,19 @@ describe('approval request → decision', () => {
     expect(await verifyDecision(keys, id, got.status, got.sig)).toBe(true);
     // once decided, it drops out of the list
     expect(await (await call('u1', 'GET', '/api/approvals')).json()).toEqual([]);
+  });
+
+  it("relays a question's sealed answer with the decision; an answer only goes with allow", async () => {
+    const { id } = await newRequest();
+    const answer = await sealApprovalAnswer(keys, id, { 'Which DB?': 'SQLite' });
+    const deny = await signDecision(keys, id, 'deny', answer);
+    expect((await call('u1', 'POST', `/api/approvals/${id}/decide`, { decision: 'deny', sig: deny, answer })).status).toBe(400);
+    expect((await call('u1', 'POST', `/api/approvals/${id}/decide`, { decision: 'allow', sig: deny, answer: 'plain text' })).status).toBe(400);
+    const sig = await signDecision(keys, id, 'allow', answer);
+    expect((await call('u1', 'POST', `/api/approvals/${id}/decide`, { decision: 'allow', sig, answer })).status).toBe(200);
+    const got = await (await call('u1', 'GET', `/api/approvals/${id}`)).json();
+    expect(got).toMatchObject({ status: 'allow', sig, answer });
+    expect(await verifyDecision(keys, id, got.status, got.sig, got.answer)).toBe(true);
   });
 
   it('first decision only — the second gets 409', async () => {

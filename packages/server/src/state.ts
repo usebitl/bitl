@@ -62,7 +62,10 @@ export function applyEvent(
     if (late || (s.status === status && !refresh)) return;
     s.status = status;
     s.statusAt = e.at;
-    if (status !== 'waiting_for_you') s.waitingReason = undefined;
+    if (status !== 'waiting_for_you') {
+      s.waitingReason = undefined;
+      delete s.enc.question;
+    }
   };
   /** Content field updates. undefined clears the field */
   const put = (field: keyof StoredSession['enc'], value: Sealed | undefined) => {
@@ -132,12 +135,15 @@ export function applyEvent(
         if (s.status !== 'waiting_for_you') setStatus('needs_review');
         break;
       }
+      // Claude Code follows a question/plan with a generic "needs your permission" prompt — keep the more specific reason and text
+      if (s.status === 'waiting_for_you' && (s.waitingReason === 'question' || s.waitingReason === 'plan') && e.waitingReason === 'permission') break;
       setStatus('waiting_for_you', true);
       if (!late) {
         s.waitingReason = e.waitingReason;
         // What it's waiting on: the tool (permission/question) or the description in the report (an MCP/manual task's "need confirmation…")
         const act = c.activity ?? c.text;
         if (act) put('currentActivity', act);
+        put('question', e.waitingReason === 'question' ? c.text : undefined);
       }
       // A status report's waiting means "the reply ended with a question" — keep it as that turn's result
       if (isReport) {

@@ -1,4 +1,12 @@
-import { type ApprovalDecision, type ApprovalRequest, type ContentKeys, openApprovalRequest, signDecision } from '@bitl/shared/client';
+import {
+  type ApprovalAnswers,
+  type ApprovalDecision,
+  type ApprovalRequest,
+  type ContentKeys,
+  openApprovalRequest,
+  sealApprovalAnswer,
+  signDecision,
+} from '@bitl/shared/client';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -30,17 +38,32 @@ export async function openApproval(keys: ContentKeys | null, a: StoredApproval):
   return { id: a.id, sessionKey: a.sessionKey, createdAt: a.createdAt, expiresAt: a.expiresAt, request };
 }
 
-/** Sends a signed decision. Reports the state if another device already answered or the PC stopped waiting */
-export async function decide(keys: ContentKeys, id: string, decision: ApprovalDecision): Promise<'ok' | 'settled' | 'gone'> {
-  const sig = await signDecision(keys, id, decision);
+/**
+ * Sends a signed decision. Reports the state if another device already answered or the PC stopped waiting.
+ * answers: a question's answers — sealed, and covered by the signature
+ */
+export async function decide(keys: ContentKeys, id: string, decision: ApprovalDecision, answers?: ApprovalAnswers): Promise<'ok' | 'settled' | 'gone'> {
+  const answer = answers ? await sealApprovalAnswer(keys, id, answers) : undefined;
+  const sig = await signDecision(keys, id, decision, answer);
   const res = await fetch(`/api/approvals/${encodeURIComponent(id)}/decide`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ decision, sig }),
+    body: JSON.stringify({ decision, sig, ...(answer ? { answer } : {}) }),
   });
   if (res.ok) return 'ok';
   return res.status === 409 ? 'settled' : 'gone';
 }
+
+/**
+ * Questions answered from this device: session key → the statusAt of the question that was answered.
+ * The card stays "waiting on a question" until the agent picks the answer up (and for good if it never does), so the question
+ * is hidden here until the session moves on or waits on a new question (a new statusAt)
+ */
+const answered = new Map<string, string>();
+
+export const markAnswered = (sessionKey: string, statusAt: string) => answered.set(sessionKey, statusAt);
+
+export const answeredHere = (s: { key: string; statusAt: string }) => answered.get(s.key) === s.statusAt;
 
 /** Remote approval on/off. undefined: loading, null: not supported by this server */
 export function useAwayMode(): { away: boolean | null | undefined; setAway: (on: boolean) => Promise<void> } {

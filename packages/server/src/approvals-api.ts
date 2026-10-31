@@ -28,7 +28,7 @@ export function closeApprovalsOnResume(store: SessionStore, approvals: ApprovalS
  *   GET  /api/approvals                 board: pending requests
  *   GET  /api/approvals/:id             status
  *   GET  /api/approvals/:id/wait        PC: wait until decided or up to 25 s, then return the status
- *   POST /api/approvals/:id/decide      phone: {decision, sig} — first decision wins
+ *   POST /api/approvals/:id/decide      phone: {decision, sig, answer?} — first decision wins (answer: a question's sealed answers, allow only)
  *   POST /api/approvals/:id/cancel      PC: stop waiting (answering in the terminal instead)
  */
 export function mountApprovals(app: Hono<Env>, approvals: ApprovalStore, access: AccessPolicy = allowAll) {
@@ -108,13 +108,15 @@ export function mountApprovals(app: Hono<Env>, approvals: ApprovalStore, access:
   });
 
   app.post('/api/approvals/:id/decide', async (c) => {
-    const b = (await c.req.json().catch(() => null)) as { decision?: unknown; sig?: unknown } | null;
-    const { decision, sig } = b ?? {};
+    const b = (await c.req.json().catch(() => null)) as { decision?: unknown; sig?: unknown; answer?: unknown } | null;
+    const { decision, sig, answer } = b ?? {};
     // The server can't verify the signature (it has no key) — only the shape is checked. The PC verifies it
     if ((decision !== 'allow' && decision !== 'deny') || typeof sig !== 'string' || !APPROVAL_SIG_PATTERN.test(sig))
       return c.json({ error: 'invalid decision' }, 400);
+    if (answer !== undefined && (decision !== 'allow' || typeof answer !== 'string' || answer.length > 20_000 || !SEALED_PATTERN.test(answer)))
+      return c.json({ error: 'invalid answer' }, 400);
     const [accountId, id] = [c.var.accountId, c.req.param('id')];
-    const a = await approvals.settle(accountId, id, decision, sig);
+    const a = await approvals.settle(accountId, id, decision, sig, undefined, answer);
     if (a) return c.json(a);
     const current = await approvals.get(accountId, id);
     return current ? c.json({ error: 'already settled', approval: current }, 409) : c.json(notFound, 404);

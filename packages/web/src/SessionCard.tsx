@@ -1,9 +1,9 @@
-import type { ContentKeys } from '@bitl/shared/client';
+import { type ContentKeys, parseQuestions } from '@bitl/shared/client';
 import { displayTitle, type Session } from '@bitl/shared/session';
 import { type ReactNode, useState } from 'react';
 import { ApprovalBox } from './ApprovalBox';
 import { deleteSession, postAction, reportManual } from './api';
-import type { Approval } from './approvals';
+import { type Approval, answeredHere } from './approvals';
 import { agoPhrase, elapsed, localDateTime, minutesSince, promptText, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { CardGoalMenu, GoalBadges } from './GoalViews';
 import { t, titleLabels } from './i18n';
@@ -183,6 +183,8 @@ export function SessionCard({
   // what it is doing now if running or waiting; the last response if finished
   const finished = s.status === 'needs_review' || s.status === 'error';
   const activity = finished ? undefined : s.currentActivity;
+  // Waiting on a question: the question itself in place of the tool line
+  const questions = s.status === 'waiting_for_you' && s.waitingReason === 'question' && !answeredHere(s) ? parseQuestions(s.question) : undefined;
   const response = finished ? s.lastMessage : undefined;
 
   return (
@@ -235,7 +237,18 @@ export function SessionCard({
             {lastPrompt}
           </p>
         )}
-        {activity && <p className="mt-1.5 line-clamp-2 break-all font-mono text-xs text-zinc-600 dark:text-zinc-400">{activity}</p>}
+        {questions ? (
+          <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-1.5 dark:border-red-500/30 dark:bg-red-500/10">
+            <p className="line-clamp-2 break-words text-sm text-zinc-800 dark:text-zinc-100">❓ {questions[0]!.question}</p>
+            <p className="mt-0.5 text-xs text-red-700/80 dark:text-red-300/80">
+              {questions.length > 1
+                ? t('question.countMany', { n: questions.length, o: questions.reduce((n, q) => n + q.options.length, 0) })
+                : t('question.count', { o: questions[0]!.options.length })}
+            </p>
+          </div>
+        ) : (
+          activity && <p className="mt-1.5 line-clamp-2 break-all font-mono text-xs text-zinc-600 dark:text-zinc-400">{activity}</p>
+        )}
         {response && (
           <p className="mt-1.5 line-clamp-2 break-words text-xs text-zinc-600 dark:text-zinc-400" title={t('card.lastResponse')}>
             <span className="mr-1 text-zinc-400">↳</span>

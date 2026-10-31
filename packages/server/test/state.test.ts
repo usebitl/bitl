@@ -182,6 +182,25 @@ describe('waiting on questions and plan approval', () => {
     expect(answered.waitingReason).toBeUndefined();
   });
 
+  it('a permission prompt that follows a question keeps the question reason and text', () => {
+    const asking = run(
+      hook('UserPromptSubmit', { prompt: 'x' }),
+      hook('PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: '어느 DB?' }] } }),
+      hook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission' }),
+      hook('PermissionRequest', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: '어느 DB?' }] } }),
+    );
+    expect(v(asking)).toMatchObject({ status: 'waiting_for_you', waitingReason: 'question', currentActivity: 'AskUserQuestion: 어느 DB?' });
+  });
+
+  it('keeps the full question while waiting and drops it once answered', () => {
+    const asking = run(
+      hook('UserPromptSubmit', { prompt: 'x' }),
+      hook('PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: '어느 DB?', options: [{ label: 'SQLite' }] }] } }),
+    );
+    expect(JSON.parse(String(v(asking).question))).toEqual([{ question: '어느 DB?', options: [{ label: 'SQLite' }] }]);
+    expect(step(asking, hook('PostToolUse', { tool_name: 'AskUserQuestion' })).session.enc.question).toBeUndefined();
+  });
+
   it('ExitPlanMode: waiting on plan approval → back to running even if rejected (failed)', () => {
     const planning = run(hook('UserPromptSubmit', { prompt: 'x' }), hook('PreToolUse', { tool_name: 'ExitPlanMode', tool_input: { plan: 'p' } }));
     expect(v(planning)).toMatchObject({ status: 'waiting_for_you', waitingReason: 'plan' });

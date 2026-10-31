@@ -237,6 +237,8 @@ export interface DetailContext {
   now: number;
   /** Has keys and is not read-only */
   canEdit: boolean;
+  /** This card's open remote approval request (its box sits at the top of the detail) */
+  approval?: Approval;
 }
 
 /** What a plug-in adds to the detail */
@@ -245,6 +247,8 @@ export interface DetailAddOns {
   tabs?: { id: string; label: string; content: ReactNode; after?: string }[];
   /** A control in each turn's header (prompts tab and focus view) */
   turnAction?: (turn: Turn) => ReactNode;
+  /** Shown at the bottom of the header, under the remote approval box */
+  top?: ReactNode;
 }
 
 /**
@@ -319,7 +323,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   // number of other sessions waiting for you
   const othersWaiting = attentionCount - (session.status === 'waiting_for_you' || session.status === 'error' ? 1 : 0);
   const useAddOns = extension?.useAddOns ?? noAddOns;
-  const addOns = useAddOns({ session, turns, now, canEdit });
+  const addOns = useAddOns({ session, turns, now, canEdit, approval });
   const tabs: { id: string; label: string; content?: ReactNode }[] = [
     { id: 'turns', label: msg('detail.tabTurns', { n: turns.length }) },
     { id: 'entries', label: msg('detail.tabEntries', { n: entries.length }) },
@@ -396,7 +400,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             )}
           </div>
         </div>
-        {approval && <ApprovalBox approval={approval} keys={keys} now={now} full />}
+        {approval && <ApprovalBox approval={approval} keys={keys} now={now} full statusAt={session.statusAt} />}
+        {addOns.top}
       </header>
 
       {/* Turns / entries switch via tabs (same in wide view) */}

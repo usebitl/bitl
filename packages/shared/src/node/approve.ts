@@ -3,12 +3,13 @@
 // Only when remote approval is on: seals and uploads the request, waits for the phone's decision, verifies the signature and returns allow/deny.
 // In every other case (remote approval off, server unreachable, timeout, bad signature) it returns null → the hook prints nothing and
 // Claude Code shows the approval prompt in the terminal as usual. No failure ever turns into "allow".
-import { describeToolRequest, newApprovalId, sealApprovalRequest, verifyDecision } from '../approval.js';
+import { describeToolRequest, newApprovalId, openApprovalAnswer, sealApprovalRequest, verifyDecision } from '../approval.js';
 import { resolveTarget } from './cloud.js';
 import { projectName } from './enrich.js';
 import { bitlHome } from './keys.js';
 
-export type RemoteDecision = { behavior: 'allow' } | { behavior: 'deny'; message: string };
+/** updatedInput: a question answered on the phone — the tool input with the answers filled in */
+export type RemoteDecision = { behavior: 'allow'; updatedInput?: Record<string, unknown> } | { behavior: 'deny'; message: string };
 
 export interface ApproveOptions {
   home?: string;
@@ -21,8 +22,8 @@ export interface ApproveOptions {
 
 /** Default wait is 10 minutes. The hook config timeout is longer than this (cli/install.ts) */
 export const DEFAULT_APPROVAL_WAIT_MS = 10 * 60_000;
-/** Tools the phone doesn't answer: multiple-choice questions can't be answered via the hook (terminal only) */
-const SKIP_TOOLS = new Set(['AskUserQuestion']);
+/** A question (multiple choice) is answered by filling the tool input's answers — a plain allow would skip it unanswered */
+const QUESTION_TOOL = 'AskUserQuestion';
 const POLL_MS = 25_000;
 const DENY_MESSAGE = 'The user denied this from their phone (BITL remote approval).';
 
@@ -36,7 +37,7 @@ export async function requestRemoteApproval(payload: Record<string, unknown>, op
   const log = opts.log ?? (() => {});
   const tool = typeof payload.tool_name === 'string' ? payload.tool_name : undefined;
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : undefined;
-  if (!tool || !sessionId || SKIP_TOOLS.has(tool)) return null;
+  if (!tool || !sessionId) return null;
 
   const target = resolveTarget(opts.home ?? bitlHome());
   const api = async (path: string, init: RequestInit & { timeoutMs: number; keepOnAbort?: boolean }) => {
@@ -94,11 +95,18 @@ export async function requestRemoteApproval(payload: Record<string, unknown>, op
     if (status === 'pending') continue;
     if (status === 'allow' || status === 'deny') {
       // Don't trust the decision the server sent: verify it was signed with the account key
-      if (!(await verifyDecision(keys, id, status, typeof a.sig === 'string' ? a.sig : ''))) {
+      const answer = typeof a.answer === 'string' ? a.answer : undefined;
+      if (!(await verifyDecision(keys, id, status, typeof a.sig === 'string' ? a.sig : '', answer))) {
         log(`remote approval: received a decision with an invalid signature (${id}) — ignoring it and approving in the terminal`);
         return null;
       }
-      return status === 'allow' ? { behavior: 'allow' } : { behavior: 'deny', message: DENY_MESSAGE };
+      if (status === 'deny') return { behavior: 'deny', message: DENY_MESSAGE };
+      if (tool !== QUESTION_TOOL) return { behavior: 'allow' };
+      // A question needs its answers: without them (or if they don't open) the terminal asks instead
+      const answers = answer ? await openApprovalAnswer(keys, id, answer).catch(() => undefined) : undefined;
+      if (!answers) return null;
+      const input = payload.tool_input && typeof payload.tool_input === 'object' ? (payload.tool_input as Record<string, unknown>) : {};
+      return { behavior: 'allow', updatedInput: { ...input, answers } };
     }
     return null; // cancelled · expired
   }

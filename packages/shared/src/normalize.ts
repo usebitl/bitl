@@ -33,6 +33,44 @@ export function summarizeToolInput(input: unknown): string | undefined {
   return pick ? oneLine(pick) : undefined;
 }
 
+/** One question the agent is asking (AskUserQuestion), as shown in the detail */
+export interface PendingQuestion {
+  header?: string;
+  question: string;
+  multiSelect?: boolean;
+  options: { label: string; description?: string }[];
+}
+
+/** AskUserQuestion's tool_input → the questions with their options. undefined if there are none */
+export function questionsOf(input: unknown): PendingQuestion[] | undefined {
+  const list = (input as Raw | undefined)?.questions;
+  if (!Array.isArray(list)) return undefined;
+  const out: PendingQuestion[] = [];
+  for (const q of list as Raw[]) {
+    const question = str(q?.question);
+    if (!question) continue;
+    const options = Array.isArray(q.options)
+      ? (q.options as Raw[]).flatMap((o) => {
+          const label = str(o?.label);
+          return label ? [{ label, ...(str(o.description) ? { description: str(o.description) } : {}) }] : [];
+        })
+      : [];
+    out.push({ ...(str(q.header) ? { header: str(q.header) } : {}), question, ...(q.multiSelect === true ? { multiSelect: true } : {}), options });
+  }
+  return out.length ? out : undefined;
+}
+
+/** A card's question field → the questions. undefined if missing or cut off (the text limit can truncate the JSON) */
+export function parseQuestions(json: string | undefined): PendingQuestion[] | undefined {
+  if (!json) return undefined;
+  try {
+    const list = JSON.parse(json) as unknown;
+    return Array.isArray(list) && list.length ? (list as PendingQuestion[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Claude Code tools where the agent stops until the user answers → waiting reason */
 const USER_BLOCKING_TOOLS: Record<string, WaitingReason | undefined> = {
   AskUserQuestion: 'question',
@@ -99,6 +137,11 @@ export function normalizeHook(source: AgentSource, raw: Raw, receivedAt: string)
       const reason = tool && USER_BLOCKING_TOOLS[tool.name];
       type = reason ? 'waiting' : 'tool_start';
       waitingReason = reason;
+      // The full questions and options go along as the (sealed) text, for the detail
+      if (reason === 'question') {
+        const questions = questionsOf(raw.tool_input);
+        if (questions) text = JSON.stringify(questions);
+      }
       break;
     }
     case 'PostToolUse':
