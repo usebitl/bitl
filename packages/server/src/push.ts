@@ -5,7 +5,8 @@ import type { Approval, ApprovalStore, PushStore, PushSubscriptionRow, SessionSt
 
 /**
  * "Waiting for you" notifications.
- * The **moment** a card turns waiting for you (permission or question pending) or error, push to the account's subscribed devices.
+ * The **moment** a card turns waiting for you (question pending) or error, push to the account's subscribed devices.
+ * A permission wait is pushed only if it is still pending a few seconds later (PERMISSION_PUSH_DELAY_MS).
  *
  * The server doesn't know card contents: it ships the ciphertext it already has (title, current activity, project) as is,
  * and the phone's service worker decrypts it with the device key. If it can't, it shows "1 task is waiting for you".
@@ -101,8 +102,17 @@ export function buildPayload(s: StoredSession, attention: number): string {
 }
 
 /**
+ * A permission request that is still pending after this long is a real wait. Claude Code fires PermissionRequest even when
+ * nobody gets asked — a subagent's request that is resolved without a prompt (its tool runs and ends within a few seconds) —
+ * while a prompt that is really shown is followed by Claude Code's Notification(permission_prompt) about 6 s later.
+ * Measured on 2026-11-04: 12 of 40 permission requests flipped back to running within 10 s, the tool ending within 5 s.
+ */
+export const PERMISSION_PUSH_DELAY_MS = 8_000;
+
+/**
  * Listens to store changes and sends notifications. Call the returned function to stop.
  * cooldownMs: minimum interval between notifications for the same card (just once even if waiting → running → waiting flips quickly)
+ * permissionDelayMs: a permission wait is notified only if the card is still waiting after this long (0 = at once)
  */
 export function startPushNotifier(opts: {
   store: SessionStore;
@@ -113,10 +123,12 @@ export function startPushNotifier(opts: {
   /** Whether this account may be notified (billing: not when read-only) */
   canNotify?: (accountId: string) => Promise<boolean>;
   cooldownMs?: number;
+  permissionDelayMs?: number;
   onError?: (err: unknown) => void;
 }): { stop: () => void; idle: () => Promise<void> } {
-  const { store, push, sender, cooldownMs = 60_000 } = opts;
+  const { store, push, sender, cooldownMs = 60_000, permissionDelayMs = PERMISSION_PUSH_DELAY_MS } = opts;
   const lastSent = new Map<string, number>();
+  const pending = new Map<string, ReturnType<typeof setTimeout>>();
   let inflight = Promise.resolve();
 
   // Replace undelivered notifications for the same target with the new one (topic: URL-safe, up to 32 chars)
@@ -140,18 +152,46 @@ export function startPushNotifier(opts: {
     await sendAll(accountId, buildPayload(s, attention), topicOf(s.key));
   };
 
+  // Empty sessions are not on the board (e.g. one relaying other sessions' notifications) — those sessions notify for themselves
+  // Cleared cards are off the board too (a card that needs the user again is no longer cleared)
+  const alerting = (s: StoredSession) => ALERT.has(s.status) && !isEmptySession(s) && !s.cleared && !s.replacedBy;
+
+  /** Cooldown per card: true if this card may be notified now (and records it) */
+  const claim = (accountId: string, s: StoredSession) => {
+    const id = `${accountId}\n${s.key}`;
+    const t = Date.now();
+    if (t - (lastSent.get(id) ?? 0) < cooldownMs) return false;
+    lastSent.set(id, t);
+    if (lastSent.size > 10_000) lastSent.clear();
+    return true;
+  };
+  const send = (accountId: string, s: StoredSession) => {
+    if (claim(accountId, s)) inflight = inflight.then(() => notify(accountId, s)).catch((err) => opts.onError?.(err));
+  };
+
   const off = store.subscribe((change) => {
     if (change.type !== 'session') return;
     const s = change.session;
-    // Empty sessions are not on the board (e.g. one relaying other sessions' notifications) — those sessions notify for themselves
-    // Cleared cards are off the board too (a card that needs the user again is no longer cleared)
-    if (!ALERT.has(s.status) || change.prevStatus === s.status || isEmptySession(s) || s.cleared || s.replacedBy) return;
     const id = `${change.accountId}\n${s.key}`;
-    const t = Date.now();
-    if (t - (lastSent.get(id) ?? 0) < cooldownMs) return;
-    lastSent.set(id, t);
-    if (lastSent.size > 10_000) lastSent.clear();
-    inflight = inflight.then(() => notify(change.accountId, s)).catch((err) => opts.onError?.(err));
+    if (change.prevStatus === s.status) return;
+    // The card moved on: a permission wait that hasn't been notified yet is dropped
+    clearTimeout(pending.get(id));
+    pending.delete(id);
+    if (!alerting(s)) return;
+    if (s.status !== 'waiting_for_you' || s.waitingReason !== 'permission' || permissionDelayMs <= 0) return send(change.accountId, s);
+    // A permission wait: notify only if the card is still waiting after the delay (with what it shows by then)
+    pending.set(
+      id,
+      setTimeout(() => {
+        pending.delete(id);
+        inflight = inflight
+          .then(async () => {
+            const now = await store.getSession(change.accountId, s.key);
+            if (now && now.status === 'waiting_for_you' && alerting(now) && claim(change.accountId, now)) await notify(change.accountId, now);
+          })
+          .catch((err) => opts.onError?.(err));
+      }, permissionDelayMs),
+    );
   });
   // Remote approval: immediately for each new request (no cooldown — every request needs an answer)
   // When it ends (allow, deny, answered in the terminal, timeout), send a cleanup notification with the same topic — clears the leftover button notification on the phone
@@ -163,6 +203,8 @@ export function startPushNotifier(opts: {
     stop: () => {
       off();
       offApprovals?.();
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
     },
     idle: () => inflight,
   };

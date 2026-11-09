@@ -41,7 +41,7 @@ beforeEach(() => {
   push = new PushStore(store.db);
   sent = [];
   reply = 'ok';
-  notifier = startPushNotifier({ store, push, sender, cooldownMs: 0 });
+  notifier = startPushNotifier({ store, push, sender, cooldownMs: 0, permissionDelayMs: 0 });
 });
 afterEach(async () => {
   notifier.stop();
@@ -90,7 +90,7 @@ describe('waiting-for-you notifications', () => {
 
   it('only once per card within the cooldown', async () => {
     notifier.stop();
-    notifier = startPushNotifier({ store, push, sender, cooldownMs: 60_000 });
+    notifier = startPushNotifier({ store, push, sender, cooldownMs: 60_000, permissionDelayMs: 0 });
     await push.subscribe('u1', sub(1));
     await ask('u1', 's1');
     await hook('u1', 's1', 'PostToolUse', { tool_name: 'Bash' });
@@ -100,6 +100,46 @@ describe('waiting-for-you notifications', () => {
     await ask('u1', 's2');
     expect(sent).toHaveLength(2);
     expect(sent[1]!.payload.attention).toBe(2);
+  });
+
+  describe('a permission wait is notified only if it is still pending after a moment', () => {
+    const DELAY = 40;
+    const wait = async () => {
+      await new Promise((r) => setTimeout(r, DELAY + 30));
+      await notifier.idle();
+    };
+    beforeEach(() => {
+      notifier.stop();
+      notifier = startPushNotifier({ store, push, sender, cooldownMs: 0, permissionDelayMs: DELAY });
+    });
+
+    it('still waiting after the delay → one notification, with what the card shows by then', async () => {
+      await push.subscribe('u1', sub(1));
+      await ask('u1', 's1');
+      expect(sent).toHaveLength(0);
+      await wait();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.payload).toMatchObject({ key: 'claude-code:s1', status: 'waiting_for_you', reason: 'permission' });
+    });
+
+    it('resolved without a prompt (the next tool starts at once, e.g. a subagent) → no notification', async () => {
+      await push.subscribe('u1', sub(1));
+      await ask('u1', 's1');
+      // after the permission race window the next tool start moves the card back to running
+      await new Promise((r) => setTimeout(r, 10));
+      await hook('u1', 's1', 'PostToolUse', { tool_name: 'Bash' });
+      await wait();
+      expect(sent).toHaveLength(0);
+    });
+
+    it('a question is still notified at once', async () => {
+      await push.subscribe('u1', sub(1));
+      await hook('u1', 's1', 'UserPromptSubmit', { prompt: '배포 스크립트 고쳐줘' });
+      await hook('u1', 's1', 'PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: '어느 쪽?', options: [{ label: 'A' }, { label: 'B' }] }] } });
+      await notifier.idle();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.payload).toMatchObject({ reason: 'question' });
+    });
   });
 
   it('deletes the subscription on a gone response (410)', async () => {

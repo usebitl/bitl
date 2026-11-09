@@ -15,7 +15,7 @@ import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, useGoals
 import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
-import { applyTheme, setTheme, THEMES, useTheme } from './theme';
+import { applyTheme, type Mode, MODES, setMode, setTheme, THEMES, useMode, useTheme } from './theme';
 
 // The chosen theme goes on <html> as soon as the board loads (index.css)
 applyTheme();
@@ -511,27 +511,54 @@ function AppMenu({ items, footer, dot = false, onJournal }: NonNullable<BoardPro
   );
 }
 
-/** ☰ menu row: board theme (remembered in this browser) */
+/** ☰ menu rows: board mode (light/dark) and theme (remembered in this browser) */
 function ThemeSwitch() {
   const theme = useTheme();
+  const mode = useMode();
+  const row = 'flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200';
+  const group = 'flex shrink-0 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700';
+  const option = (on: boolean) => `rounded-md px-1.5 py-0.5 text-xs ${on ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'}`;
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200">
-      <PaletteIcon className={MENU_ICON} />
-      <span className="flex-1 whitespace-nowrap">{t('theme.title')}</span>
-      <div className="flex shrink-0 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700" role="group" aria-label={t('theme.title')}>
-        {THEMES.map((th) => (
-          <button
-            key={th}
-            type="button"
-            aria-pressed={theme === th}
-            onClick={() => setTheme(th)}
-            className={`rounded-md px-1.5 py-0.5 text-xs ${theme === th ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'}`}
-          >
-            {t(`theme.${th}`)}
-          </button>
-        ))}
+    <>
+      <div className={row}>
+        <ModeIcon mode={mode} className={MENU_ICON} />
+        <span className="flex-1 whitespace-nowrap">{t('theme.mode')}</span>
+        <div className={group} role="group" aria-label={t('theme.mode')}>
+          {MODES.map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)} className={option(mode === m)}>
+              {t(`theme.${m}`)}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+      <div className={row}>
+        <PaletteIcon className={MENU_ICON} />
+        <span className="flex-1 whitespace-nowrap">{t('theme.title')}</span>
+        <div className={group} role="group" aria-label={t('theme.title')}>
+          {THEMES.map((th) => (
+            <button key={th} type="button" aria-pressed={theme === th} onClick={() => setTheme(th)} className={option(theme === th)}>
+              {t(`theme.${th}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Sun (light) or moon (dark) */
+function ModeIcon({ mode, className }: { mode: Mode; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+      {mode === 'light' ? (
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </>
+      ) : (
+        <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />
+      )}
+    </svg>
   );
 }
 

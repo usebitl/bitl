@@ -69,6 +69,12 @@ html[data-theme] [class*='bg-[#0b0d12]'] {
   background-color: var(--bitl-bg-glass);
 }
 
+/* Light mode — <html> loses the dark class (theme.ts), so the components' light styles apply.
+   The default style needs nothing more; Zen and Cyberpunk get their own light palettes below */
+html[data-mode='light'] {
+  color-scheme: light;
+}
+
 /* Zen — like VS Code's Zen Mode: quiet grays, muted accents, less chrome (same width as the default) */
 html[data-theme='zen'] {
   --bitl-bg: #1a1a1a;
@@ -127,6 +133,22 @@ html[data-theme='zen'] .bitl-col-title {
 html[data-theme='zen'] .bitl-ended {
   border-top-color: transparent;
   opacity: 0.6;
+}
+/* Zen, light — like VS Code's light Zen Mode: off-white page, white cards, the same quiet grays */
+html[data-theme='zen'][data-mode='light'] {
+  --bitl-bg: #f4f4f3;
+  --bitl-bg-glass: rgb(244 244 243 / 0.94);
+}
+html[data-theme='zen'][data-mode='light'] .bitl-card {
+  background-color: #ffffff;
+  border-color: #e6e6e4;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+html[data-theme='zen'][data-mode='light'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  border-color: rgb(156 86 86 / 0.45);
+}
+html[data-theme='zen'][data-mode='light'] .bitl-col-title {
+  color: var(--color-zinc-600);
 }
 
 /* Cyberpunk — yellow-first, like the genre's signature neon yellow on black: yellow edges, titles and buttons;
@@ -311,6 +333,116 @@ html:is(:not([data-theme]), [data-theme='cyberpunk']) .bitl-card[data-status='ru
 }
 html[data-theme='cyberpunk'] .bitl-card[data-status='running']::before {
   background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(252 238 10 / 0.25) 80%, #fcee0a 88%, transparent 96%);
+}
+
+/* Cyberpunk, light — a daylight deck: paper ground, black lines, the neon colors as fills and stripes instead of glow
+   (glow on white only smears). Running = yellow, needs review = cyan, waiting on you = hot pink, as in the dark version.
+   Text accents are darkened so they read on paper */
+html[data-theme='cyberpunk'][data-mode='light'] {
+  --bitl-bg: #ecebe1;
+  --bitl-bg-glass: rgb(236 235 225 / 0.92);
+  --bitl-ink: #14130e;
+  --color-zinc-50: #fbfaf2;
+  --color-zinc-100: #f2f0e3;
+  --color-zinc-200: #e2dfcc;
+  --color-zinc-300: #c9c5ac;
+  --color-zinc-400: #8f8a6c;
+  --color-zinc-500: #67634b;
+  --color-zinc-600: #4d4a37;
+  --color-zinc-700: #36342a;
+  --color-zinc-800: #24221a;
+  --color-zinc-900: #14130e;
+  --color-zinc-950: #0a0a08;
+  --color-emerald-300: #f5e94a;
+  --color-emerald-400: #d4c600;
+  --color-emerald-500: #a39800;
+  --color-emerald-600: #6e6600;
+  --color-amber-300: #6ae8f5;
+  --color-amber-400: #00c2dc;
+  --color-amber-500: #0097ad;
+  --color-amber-600: #00788c;
+  --color-red-300: #ff7aa5;
+  --color-red-400: #ff2a6d;
+  --color-red-500: #e0105a;
+  --color-red-600: #c4084d;
+  --color-sky-300: #f5e94a;
+  --color-sky-400: #d4c600;
+  --color-sky-500: #a39800;
+  --color-sky-600: #6e6600;
+  --color-violet-400: #00c2dc;
+  --color-violet-500: #0097ad;
+  --color-orange-300: #d4c600;
+  --color-rose-300: #ff7aa5;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-header {
+  border-bottom: 2px solid var(--bitl-ink);
+  box-shadow: 0 3px 0 var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-header h1 {
+  color: var(--bitl-ink);
+  text-shadow: 2px 2px 0 var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-col-title {
+  width: fit-content;
+  padding-right: 0.25em;
+  color: var(--bitl-ink);
+  text-shadow: none;
+  background: linear-gradient(transparent 55%, var(--bitl-yellow) 55%);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-card {
+  border: 1.5px solid var(--bitl-ink);
+  background-color: #fbfaf2;
+  box-shadow: inset 5px 0 0 var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-card[data-status='needs_review'] {
+  border-color: var(--bitl-ink);
+  box-shadow: inset 5px 0 0 #00c2dc;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  border-color: #e0105a;
+  box-shadow: inset 5px 0 0 #ff2a6d;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-card h3 {
+  text-shadow: none;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-btn-primary {
+  background-color: var(--bitl-ink);
+  color: var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-btn-primary:hover {
+  background-color: #36342a;
+  box-shadow: 3px 3px 0 var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-ack:hover {
+  color: var(--bitl-ink);
+  text-shadow: none;
+  text-decoration: underline;
+  text-decoration-color: var(--bitl-yellow);
+  text-decoration-thickness: 3px;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-empty {
+  border-color: rgb(20 19 14 / 0.35);
+  color: var(--color-zinc-500);
+}
+html[data-theme='cyberpunk'][data-mode='light'] body::after {
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.025) 0 1px, transparent 1px 3px);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-hud {
+  color: var(--color-zinc-600);
+  text-shadow: none;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-hud-clock {
+  color: #00788c;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-hud-lost {
+  color: #c4084d;
+  text-shadow: none;
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-wordmark {
+  --bitl-glitch-rest: 2px 2px 0 var(--bitl-yellow);
+}
+html[data-theme='cyberpunk'][data-mode='light'] .bitl-card[data-status='running']::before {
+  background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(212 198 0 / 0.3) 80%, #d4c600 88%, transparent 96%);
 }
 
 @media (prefers-reduced-motion: reduce) {

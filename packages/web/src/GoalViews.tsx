@@ -1,5 +1,6 @@
 import { type BoardColumn, columnOf, displayTitle, type Session } from '@bitl/shared/client';
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { changeGoal, createGoal, deleteGoal, type Goal, setGoalClosed, toggleMember } from './goals';
 import { SOURCE_LABEL } from './format';
 import { GoalAddIcon } from './Icons';
@@ -563,21 +564,69 @@ export function GoalDialog({
   );
 }
 
+const MENU_WIDTH = 240;
+const MENU_GAP = 6;
+
+/**
+ * Where the card's goal menu goes: under the ◎ button, right-aligned to it, kept on screen; it opens upward when there is
+ * more room above. Fixed to the viewport (rendered in a portal) so the card's overflow and clip-path don't cut it off
+ */
+function menuPlacement(button: HTMLElement) {
+  const r = button.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom - MENU_GAP - 8;
+  const above = r.top - MENU_GAP - 8;
+  const up = below < 240 && above > below;
+  const left = Math.min(Math.max(8, r.right - MENU_WIDTH), window.innerWidth - MENU_WIDTH - 8);
+  return up
+    ? { left, bottom: window.innerHeight - r.top + MENU_GAP, maxHeight: above }
+    : { left, top: r.bottom + MENU_GAP, maxHeight: below };
+}
+
 /** The card's goal menu: add to / remove from each goal, or create a new goal with it */
 export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: string; goals: Goal[]; onNewGoal: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [place, setPlace] = useState<ReturnType<typeof menuPlacement> | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const inGoals = goals.filter((g) => g.members.includes(sessionKey));
   const toggle = async (g: Goal, on: boolean) => {
     setBusy(g.id);
     await toggleMember(g, sessionKey, on).catch(() => {});
     setBusy(null);
   };
+
+  // Close on a click anywhere outside the menu (and its button), on Escape, and when the page scrolls or resizes under it
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!menuRef.current?.contains(target) && !buttonRef.current?.contains(target)) setOpen(false);
+    };
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const close = () => setOpen(false);
+    const scroll = (e: Event) => !menuRef.current?.contains(e.target as Node) && close();
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', key);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', scroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', scroll, true);
+    };
+  }, [open]);
+
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open && buttonRef.current) setPlace(menuPlacement(buttonRef.current));
+          setOpen((v) => !v);
+        }}
         title={t('goal.cardMenu')}
         aria-label={t('goal.cardMenu')}
         aria-expanded={open}
@@ -587,10 +636,15 @@ export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: str
       >
         ◎
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div role="menu" className="absolute right-2 top-9 z-30 w-60 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+      {open &&
+        place &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ ...place, width: MENU_WIDTH }}
+            className="fixed z-50 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+          >
             <p className="px-2 pb-1 pt-1.5 text-xs text-zinc-500">{t('goal.cardMenu')}</p>
             {goals.length === 0 && <p className="px-2 py-1.5 text-zinc-500">{t('goal.none')}</p>}
             {goals.map((g) => (
@@ -616,9 +670,9 @@ export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: str
             >
               {t('goal.newWith')}
             </button>
-          </div>
-        </>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
