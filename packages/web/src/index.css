@@ -499,6 +499,23 @@ html[data-theme='zine'] .bitl-card[data-status='running'] {
 html[data-theme='zine'] .bitl-card[data-status='needs_review'] {
   box-shadow: 6px 6px 0 var(--bitl-cyan);
 }
+/* Running: "marching ants" — yellow dashes travel clockwise along the card's border, like a cut-here line
+   (over a cream border in dark, over black in light: hazard tape). The zine's answer to the other themes' orbit */
+@keyframes bitl-ants {
+  to { background-position: 16px 0, -16px 100%, 0 -16px, 100% 16px; }
+}
+html[data-theme='zine'] .bitl-card[data-status='running']::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--bitl-yellow) 50%, transparent 50%) 0 0 / 16px 3px repeat-x,
+    linear-gradient(90deg, var(--bitl-yellow) 50%, transparent 50%) 0 100% / 16px 3px repeat-x,
+    linear-gradient(0deg, var(--bitl-yellow) 50%, transparent 50%) 0 0 / 3px 16px repeat-y,
+    linear-gradient(0deg, var(--bitl-yellow) 50%, transparent 50%) 100% 0 / 3px 16px repeat-y;
+  animation: bitl-ants 0.8s linear infinite;
+}
 html[data-theme='zine'] .bitl-card:is([data-status='ended'], [data-status='stale'], [data-status='idle']) {
   border-color: var(--color-zinc-600);
 }
@@ -864,8 +881,10 @@ html[data-theme='zine'][data-mode='light'] .bitl-focus-header h2 {
 
 @media (prefers-reduced-motion: reduce) {
   html[data-theme='zine'] .bitl-card.pulse-ring,
+  html[data-theme='zine'] .bitl-card::before,
   html:not([data-theme]) .bitl-card::before,
-  html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost, .bitl-wordmark) {
+  html[data-theme='cyberpunk'] .bitl-card::before,
+  html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-hud-lost, .bitl-wordmark) {
     animation: none;
   }
 }
