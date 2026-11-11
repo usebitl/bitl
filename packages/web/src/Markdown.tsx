@@ -3,6 +3,8 @@ import remarkGfm from 'remark-gfm';
 
 /**
  * Agent responses rendered as Markdown (GitHub flavor: tables, task lists, strikethrough).
+ * - Strikethrough only with double tildes (~~text~~): a single ~ is a range in prose ("3~4개", "4~6분") and two of them
+ *   in one paragraph used to strike out the text between (singleTilde: false, as Claude's own renderer does)
  * Loaded lazily from the detail panel so the board's first load stays small.
  * - Raw HTML in the text is never rendered (react-markdown escapes it); unsafe URLs are dropped by its urlTransform
  * - Links open in a new tab
@@ -67,7 +69,7 @@ const components: Components = {
 
 export default function Markdown({ text }: { text: string }) {
   return (
-    <Md remarkPlugins={[remarkGfm]} components={components}>
+    <Md remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={components}>
       {text}
     </Md>
   );

@@ -80,7 +80,7 @@ function GoalChip({ row, on, onClick, shrink = false }: { row: GoalRow; on: bool
       aria-pressed={on}
       onClick={onClick}
       title={[goalTitle(goal), statusText(row)].filter(Boolean).join(' — ')}
-      className={`inline-flex h-8 ${shrink ? 'min-w-0' : 'shrink-0'} items-center gap-2 rounded-full border bg-white px-3 text-sm dark:bg-zinc-900 ${
+      className={`bitl-goal-chip inline-flex h-8 ${shrink ? 'min-w-0' : 'shrink-0'} items-center gap-2 rounded-full border bg-white px-3 text-sm dark:bg-zinc-900 ${
         on
           ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-500 dark:bg-sky-500/10'
           : c.attention
@@ -176,7 +176,7 @@ export function GoalsBar({
             data-goal-more
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-8 shrink-0 items-center rounded-full border border-dashed border-zinc-300 px-3 text-sm tabular-nums text-zinc-600 hover:bg-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            className="bitl-goal-add inline-flex h-8 shrink-0 items-center rounded-full border border-dashed border-zinc-300 px-3 text-sm tabular-nums text-zinc-600 hover:bg-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
           >
             {t('goal.more', { n: hidden })}
           </button>
@@ -186,7 +186,7 @@ export function GoalsBar({
           onClick={onCreate}
           title={t('goal.addLong')}
           aria-label={t('goal.addLong')}
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-500 hover:bg-white hover:text-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+          className="bitl-goal-add inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-500 hover:bg-white hover:text-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
         >
           <GoalAddIcon className="size-[18px]" />
         </button>
@@ -262,7 +262,7 @@ function GoalList({
   return (
     <div
       ref={root}
-      className="absolute right-0 top-full z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      className="bitl-goal-pop absolute right-0 top-full z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
     >
       <label htmlFor="goal-search" className="sr-only">
         {t('goal.search')}
@@ -349,7 +349,7 @@ export function GoalFilter({
   };
   const btn = 'rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800';
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm dark:border-sky-500/40 dark:bg-sky-500/10">
+    <div className="bitl-goal-filter mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm dark:border-sky-500/40 dark:bg-sky-500/10">
       <span>
         ◎ {rich('goal.filtering', { b: (s) => <b className="text-sky-700 dark:text-sky-300">{s}</b> }, { title: goal.title, n: count })}
       </span>
@@ -472,7 +472,7 @@ export function GoalDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="goal-dialog-title"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+        className="bitl-goal-dialog max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
       >
         <h2 id="goal-dialog-title" className="text-lg font-bold">
           {goal ? t('goal.edit.title') : t('goal.new.title')}
@@ -552,7 +552,7 @@ export function GoalDialog({
               <button
                 type="submit"
                 disabled={!title.trim() || state === 'busy'}
-                className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                className="bitl-goal-save rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {goal ? t('goal.save', { n: count }) : t('goal.create', { n: count })}
               </button>
@@ -643,7 +643,7 @@ export function CardGoalMenu({ sessionKey, goals, onNewGoal }: { sessionKey: str
             ref={menuRef}
             role="menu"
             style={{ ...place, width: MENU_WIDTH }}
-            className="fixed z-50 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="bitl-goal-pop fixed z-50 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
           >
             <p className="px-2 pb-1 pt-1.5 text-xs text-zinc-500">{t('goal.cardMenu')}</p>
             {goals.length === 0 && <p className="px-2 py-1.5 text-zinc-500">{t('goal.none')}</p>}
@@ -684,7 +684,7 @@ export function GoalBadges({ sessionKey, goals }: { sessionKey: string; goals: G
   return (
     <div className="mt-2 flex flex-wrap gap-1">
       {mine.map((g) => (
-        <span key={g.id} className="max-w-full truncate rounded-full border border-sky-300 px-2 text-[0.7rem] text-sky-700 dark:border-sky-500/40 dark:text-sky-300">
+        <span key={g.id} className="bitl-goal-badge max-w-full truncate rounded-full border border-sky-300 px-2 text-[0.7rem] text-sky-700 dark:border-sky-500/40 dark:text-sky-300">
           ◎ {g.title}
         </span>
       ))}

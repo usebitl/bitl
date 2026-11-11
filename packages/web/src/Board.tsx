@@ -15,10 +15,10 @@ import { GoalDialog, GoalFilter, GoalsBar, goalSessions, type GoalView, useGoals
 import { GoalJournal, Journal } from './JournalViews';
 import type { Goal } from './goals';
 import { LangSwitch } from './LangSwitch';
-import { applyTheme, type Mode, MODES, setMode, setTheme, THEMES, useMode, useTheme } from './theme';
+import { applyTheme, type Mode, MODES, setMode, setTheme, THEMES, useBoardTheme, useMode, useTheme } from './theme';
 
-// The chosen theme goes on <html> as soon as the board loads (index.css)
-applyTheme();
+// Light or dark for every page; the board's style goes on only while a board is shown (useBoardTheme)
+applyTheme('default');
 import { ClearDialog } from './ClearDialog';
 
 const COLUMNS: { id: BoardColumn; dot: string }[] = [
@@ -187,6 +187,7 @@ export const MENU_ITEM = 'flex w-full items-center gap-3 px-4 py-3 text-left tex
 export const MENU_ICON = 'size-[18px] text-zinc-500 dark:text-zinc-400';
 
 export function Board({ keys, enabled = true, readonly = false, badge, actions, banners, lockedNotice, top, menu, overlays, detail, cardExtra }: BoardProps) {
+  useBoardTheme();
   const { sessions, approvals, goals, connection } = useSessions(enabled ? keys : undefined);
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);

@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 /**
  * Board themes: a style and a mode (light or dark), chosen separately. The palette lives in index.css as overrides of
  * Tailwind's color variables under html[data-theme=…] (and [data-mode='light'] for the light versions), plus a few
  * layout touches on hook classes (bitl-card, bitl-empty …) — the components stay as they are.
- *   default   — the usual board
- *   zen       — like VS Code's Zen Mode: quiet grays, muted accents, less chrome (same width as the default)
+ *   default   — the original board ("Loop")
  *   cyberpunk — neon yellow on black, cyan and hot pink accents: glowing card edges, clipped corners, scanlines.
  *               Light: a daylight deck — paper, black lines, yellow/cyan/pink as fills instead of glow
+ *   zine      — the default: a cut-and-paste zine: halftone paper, cards as stickers (thick ink border, hard offset shadow),
+ *               column titles on tape, square corners; yellow = running, cyan = needs review, hot pink = waiting on you
  * Dark mode is <html class="dark"> (the components' dark: styles); light drops it. Remembered in this browser only.
+ * The style is put on <html> only while a board is on screen (useBoardTheme), so the site's other pages keep their look.
  */
-export const THEMES = ['default', 'zen', 'cyberpunk'] as const;
+/** In menu order; a stored theme that is no longer here (the old 'zen') falls back to the first */
+export const THEMES = ['zine', 'default', 'cyberpunk'] as const;
 export type Theme = (typeof THEMES)[number];
 export const MODES = ['dark', 'light'] as const;
 export type Mode = (typeof MODES)[number];
@@ -28,7 +31,7 @@ function read<T extends string>(key: string, values: readonly T[], fallback: T):
   }
 }
 
-export const getTheme = (): Theme => read(KEY, THEMES, 'default');
+export const getTheme = (): Theme => read(KEY, THEMES, 'zine');
 export const getMode = (): Mode => read(MODE_KEY, MODES, 'dark');
 
 /** Puts the theme and mode on <html> (no data-theme for the default style, no data-mode for dark) */
@@ -66,3 +69,11 @@ function useStored<T>(get: () => T): T {
 
 export const useTheme = (): Theme => useStored(getTheme);
 export const useMode = (): Mode => useStored(getMode);
+
+/** Puts the chosen style on <html> while the board is mounted, and takes it off again when it goes (mode stays) */
+export function useBoardTheme() {
+  useLayoutEffect(() => {
+    applyTheme();
+    return () => applyTheme('default');
+  }, []);
+}

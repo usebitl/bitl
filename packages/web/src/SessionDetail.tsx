@@ -176,18 +176,18 @@ function FocusView({
   }, [onClose]);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950">
-      <header className="flex items-center gap-3 border-b border-zinc-200 px-5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800">
+    <div role="dialog" aria-modal="true" aria-label={title} className="bitl-focus fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950">
+      <header className="bitl-focus-header flex items-center gap-3 border-b border-zinc-200 px-5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800">
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-semibold">{title}</h2>
           <p className="text-xs text-zinc-500">{msg('detail.tabTurns', { n: turns.length })}</p>
         </div>
-        <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+        <button type="button" onClick={onClose} className="bitl-focus-close rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           {msg('detail.focusClose')}
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5">
-        <ol className="mx-auto max-w-3xl divide-y divide-zinc-200 pb-[max(1rem,env(safe-area-inset-bottom))] dark:divide-zinc-800">
+        <ol className="bitl-focus-turns mx-auto max-w-3xl divide-y divide-zinc-200 pb-[max(1rem,env(safe-area-inset-bottom))] dark:divide-zinc-800">
           {turns.length === 0 && <p className="py-8 text-center text-sm text-zinc-400">{msg('detail.noTurns')}</p>}
           {turns.map((t, i) => (
             <li key={`${t.startedAt}-${i}`} className="space-y-4 py-8">
@@ -199,18 +199,18 @@ function FocusView({
                 </div>
                 <PromptBody
                   text={promptText(t.prompt) ?? msg('detail.noPrompt')}
-                  className="max-w-[85%] rounded-2xl rounded-tr-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800"
+                  className="bitl-focus-prompt max-w-[85%] rounded-2xl rounded-tr-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800"
                 />
               </div>
               {agentReport(t.prompt) && (
-                <div className="break-words border-l-2 border-zinc-200 pl-4 text-[0.9375rem] leading-relaxed text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
+                <div className="bitl-focus-report break-words border-l-2 border-zinc-200 pl-4 text-[0.9375rem] leading-relaxed text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
                   <Suspense fallback={<p className="whitespace-pre-wrap">{agentReport(t.prompt)}</p>}>
                     <Markdown text={agentReport(t.prompt)!} />
                   </Suspense>
                 </div>
               )}
               {t.result ? (
-                <div className="break-words text-[0.9375rem] leading-relaxed text-zinc-700 dark:text-zinc-300">
+                <div className="bitl-focus-result break-words text-[0.9375rem] leading-relaxed text-zinc-700 dark:text-zinc-300">
                   <Suspense fallback={<p className="whitespace-pre-wrap">{t.result}</p>}>
                     <Markdown text={t.result} />
                   </Suspense>

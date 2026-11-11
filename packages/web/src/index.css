@@ -70,85 +70,9 @@ html[data-theme] [class*='bg-[#0b0d12]'] {
 }
 
 /* Light mode — <html> loses the dark class (theme.ts), so the components' light styles apply.
-   The default style needs nothing more; Zen and Cyberpunk get their own light palettes below */
+   The default style needs nothing more; Cyberpunk and Zine get their own light palettes below */
 html[data-mode='light'] {
   color-scheme: light;
-}
-
-/* Zen — like VS Code's Zen Mode: quiet grays, muted accents, less chrome (same width as the default) */
-html[data-theme='zen'] {
-  --bitl-bg: #1a1a1a;
-  --bitl-bg-glass: rgb(26 26 26 / 0.94);
-  --color-zinc-50: #ececec;
-  --color-zinc-100: #e0e0e0;
-  --color-zinc-200: #cfcfcf;
-  --color-zinc-300: #b8b8b8;
-  --color-zinc-400: #8f8f8f;
-  --color-zinc-500: #727272;
-  --color-zinc-600: #575757;
-  --color-zinc-700: #3a3a3a;
-  --color-zinc-800: #2c2c2c;
-  --color-zinc-900: #222222;
-  --color-zinc-950: #1c1c1c;
-  --color-emerald-300: #a7c4b0;
-  --color-emerald-400: #8fb59a;
-  --color-emerald-500: #7aa386;
-  --color-emerald-600: #5f8a6c;
-  --color-amber-300: #d9c49a;
-  --color-amber-400: #c9ad76;
-  --color-amber-500: #b8995e;
-  --color-amber-600: #9c7f47;
-  --color-red-300: #d9a3a3;
-  --color-red-400: #c98585;
-  --color-red-500: #b86e6e;
-  --color-red-600: #9c5656;
-  --color-sky-300: #a8c0d6;
-  --color-sky-400: #8eaac4;
-  --color-sky-500: #7896b3;
-  --color-sky-600: #5f7d9a;
-  --color-violet-400: #a99cc4;
-  --color-violet-500: #9688b3;
-  --color-orange-300: #d4b49a;
-  --color-rose-300: #d4a3ad;
-}
-html[data-theme='zen'] .bitl-header {
-  border-bottom-color: transparent;
-  backdrop-filter: none;
-}
-html[data-theme='zen'] :is(.bitl-tagline, .bitl-empty, .bitl-card-meta) {
-  display: none;
-}
-html[data-theme='zen'] .bitl-card {
-  border-color: transparent;
-  box-shadow: none;
-  background-color: #232323;
-}
-html[data-theme='zen'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
-  border-color: rgb(184 110 110 / 0.45);
-}
-html[data-theme='zen'] .bitl-col-title {
-  font-weight: 500;
-  color: var(--color-zinc-400);
-}
-html[data-theme='zen'] .bitl-ended {
-  border-top-color: transparent;
-  opacity: 0.6;
-}
-/* Zen, light — like VS Code's light Zen Mode: off-white page, white cards, the same quiet grays */
-html[data-theme='zen'][data-mode='light'] {
-  --bitl-bg: #f4f4f3;
-  --bitl-bg-glass: rgb(244 244 243 / 0.94);
-}
-html[data-theme='zen'][data-mode='light'] .bitl-card {
-  background-color: #ffffff;
-  border-color: #e6e6e4;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
-}
-html[data-theme='zen'][data-mode='light'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
-  border-color: rgb(156 86 86 / 0.45);
-}
-html[data-theme='zen'][data-mode='light'] .bitl-col-title {
-  color: var(--color-zinc-600);
 }
 
 /* Cyberpunk — yellow-first, like the genre's signature neon yellow on black: yellow edges, titles and buttons;
@@ -445,7 +369,501 @@ html[data-theme='cyberpunk'][data-mode='light'] .bitl-card[data-status='running'
   background: conic-gradient(from var(--bitl-angle), transparent 0 70%, rgb(212 198 0 / 0.3) 80%, #d4c600 88%, transparent 96%);
 }
 
+/* Zine — a cut-and-paste zine: halftone paper, cards stuck on as stickers (thick ink border, hard offset shadow),
+   column titles on strips of tape, square corners everywhere. Yellow = running, cyan = needs review,
+   hot pink = waiting on you (the whole card turns pink). Display type is the system's heaviest condensed face
+   (Impact and friends) — no web font to load */
+html[data-theme='zine'] {
+  --bitl-bg: #121212;
+  --bitl-bg-glass: rgb(18 18 18 / 0.94);
+  --bitl-ink: #f4efe2;
+  --bitl-paper: #121212;
+  --bitl-dots: rgb(244 239 226 / 0.07);
+  --bitl-card-bg: #1c1c1c;
+  --bitl-hard: #000;
+  --bitl-yellow: #ffe600;
+  --bitl-cyan: #3df5ff;
+  --bitl-pink: #ff2d87;
+  --bitl-display: Impact, Haettenschweiler, 'Arial Narrow Bold', 'Franklin Gothic Bold', var(--font-sans);
+  --color-zinc-50: #fbf8ef;
+  --color-zinc-100: #f4efe2;
+  --color-zinc-200: #e2dccd;
+  --color-zinc-300: #cbc5b5;
+  --color-zinc-400: #a29c8f;
+  --color-zinc-500: #7d786e;
+  --color-zinc-600: #5a564f;
+  --color-zinc-700: #3d3a35;
+  --color-zinc-800: #2a2825;
+  --color-zinc-900: #1c1c1c;
+  --color-zinc-950: #141414;
+  --color-emerald-300: #fff38a;
+  --color-emerald-400: #ffe600;
+  --color-emerald-500: #f5d800;
+  --color-emerald-600: #d4b800;
+  --color-amber-300: #8ffcff;
+  --color-amber-400: #3df5ff;
+  --color-amber-500: #00e5ff;
+  --color-amber-600: #00b8d4;
+  --color-red-300: #ff8fbd;
+  --color-red-400: #ff5ca3;
+  --color-red-500: #ff2d87;
+  --color-red-600: #e0106f;
+  --color-sky-300: #8ffcff;
+  --color-sky-400: #3df5ff;
+  --color-sky-500: #00e5ff;
+  --color-sky-600: #00b8d4;
+  --color-violet-400: #c8b8ff;
+  --color-violet-500: #a891ff;
+}
+html[data-theme='zine'] body {
+  background-image: radial-gradient(var(--bitl-dots) 1.6px, transparent 2px);
+  background-size: 14px 14px;
+}
+html[data-theme='zine'] :is(.rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl) {
+  border-radius: 0;
+}
+html[data-theme='zine'] .bitl-header {
+  border-bottom: 4px solid var(--bitl-ink);
+  backdrop-filter: none;
+}
+html[data-theme='zine'] .bitl-header h1 svg {
+  filter: drop-shadow(3px 3px 0 var(--bitl-pink));
+  transform: rotate(-6deg);
+}
+html[data-theme='zine'] .bitl-wordmark {
+  display: inline-block;
+  padding: 0 0.45em;
+  border: 2.5px solid #111;
+  background: var(--bitl-yellow);
+  color: #111;
+  font-family: var(--bitl-display);
+  font-weight: 400;
+  font-size: 1.3em;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  transform: rotate(-2deg);
+}
+html[data-theme='zine'] .bitl-tagline {
+  margin-left: 0.25em;
+  padding: 0.1em 0.55em;
+  background: var(--bitl-ink);
+  color: var(--bitl-paper);
+  font-family: var(--bitl-display);
+  font-size: 0.8em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(1.5deg);
+}
+html[data-theme='zine'] .bitl-header h1 .bitl-tagline.md\:inline {
+  display: none;
+}
+@media (min-width: 48rem) {
+  html[data-theme='zine'] .bitl-header h1 .bitl-tagline.md\:inline {
+    display: inline-block;
+  }
+}
+html[data-theme='zine'] .bitl-col-title {
+  width: fit-content;
+  padding: 0.2em 0.8em 0.3em;
+  background: var(--bitl-yellow);
+  color: #111;
+  font-size: 1rem;
+  font-weight: 900;
+  transform: rotate(-1.5deg);
+}
+html[data-theme='zine'] section:nth-child(2n) > .bitl-col-title {
+  background: var(--bitl-cyan);
+  transform: rotate(1deg);
+}
+html[data-theme='zine'] .bitl-rest > .bitl-col-title {
+  background: var(--bitl-ink);
+  color: var(--bitl-paper);
+}
+/* The tape's color already says which column it is */
+html[data-theme='zine'] .bitl-col-title > span:first-child {
+  display: none;
+}
+html[data-theme='zine'] .bitl-col-title > span:last-child {
+  color: inherit;
+  font-family: var(--bitl-display);
+  font-weight: 400;
+}
+html[data-theme='zine'] .bitl-card {
+  border: 3px solid var(--bitl-ink);
+  background-color: var(--bitl-card-bg);
+  box-shadow: 6px 6px 0 #000;
+}
+html[data-theme='zine'] .bitl-card[data-status='running'] {
+  box-shadow: 6px 6px 0 var(--bitl-yellow);
+}
+html[data-theme='zine'] .bitl-card[data-status='needs_review'] {
+  box-shadow: 6px 6px 0 var(--bitl-cyan);
+}
+html[data-theme='zine'] .bitl-card:is([data-status='ended'], [data-status='stale'], [data-status='idle']) {
+  border-color: var(--color-zinc-600);
+}
+/* Waiting on you: the card itself turns hot pink. Inside it the gray and accent scales are swapped for inks, so the
+   components' own text and box colors stay readable on pink without touching them */
+html[data-theme='zine'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  border-color: #111;
+  background-color: var(--bitl-pink);
+  box-shadow: 6px 6px 0 var(--bitl-ink);
+  color: #111;
+  --color-zinc-50: #fff;
+  --color-zinc-100: #111;
+  --color-zinc-200: #1a1a1a;
+  --color-zinc-300: #222;
+  --color-zinc-400: #2a0a18;
+  --color-zinc-500: #2a0a18;
+  --color-zinc-600: #3a1020;
+  --color-zinc-700: #fff5f9;
+  --color-zinc-800: #ffe3ef;
+  --color-zinc-900: #fff;
+  --color-red-300: #111;
+  --color-red-400: #111;
+  --color-red-500: #111;
+  --color-red-600: #111;
+  --color-red-700: #111;
+  --color-amber-400: #111;
+  --color-amber-600: #111;
+  --color-amber-700: #111;
+  --color-emerald-400: #111;
+  --color-emerald-600: #111;
+  --color-emerald-700: #111;
+  --color-sky-400: #111;
+  --color-sky-600: #111;
+  --color-sky-700: #111;
+}
+html[data-theme='zine'] .bitl-card.pulse-ring {
+  animation: bitl-zine-wiggle 4s ease-in-out infinite;
+}
+@keyframes bitl-zine-wiggle {
+  0%, 88%, 100% { transform: none; }
+  91% { transform: rotate(-1deg); }
+  94% { transform: rotate(1deg); }
+  97% { transform: rotate(-0.5deg); }
+}
+html[data-theme='zine'] .bitl-btn-primary {
+  border: 2px solid #111;
+  background-color: #111;
+  color: var(--bitl-yellow);
+  font-weight: 800;
+  box-shadow: 3px 3px 0 var(--bitl-yellow);
+}
+html[data-theme='zine'] .bitl-btn-primary:hover {
+  background-color: #111;
+  box-shadow: 4px 4px 0 var(--bitl-yellow);
+  transform: translate(-1px, -1px);
+}
+/* A hand-underlined word that gets a highlighter stroke on hover, not another box */
+html[data-theme='zine'] .bitl-ack {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+html[data-theme='zine'] .bitl-ack:hover {
+  background: linear-gradient(transparent 45%, var(--bitl-yellow) 45%, var(--bitl-yellow) 90%, transparent 90%);
+  color: #111;
+  text-decoration: none;
+}
+html[data-theme='zine'] .bitl-empty {
+  border: 2px dashed var(--color-zinc-600);
+}
+html[data-theme='zine'] .bitl-ended {
+  border-top: 4px solid var(--bitl-ink);
+}
+html[data-theme='zine'] .bitl-rest {
+  border-left-style: dashed;
+  border-left-color: var(--color-zinc-600);
+}
+
+/* Zine: goals — chips are little stickers (yellow when picked, pink shadow when something waits), the menus and
+   dialog are pasted-on sheets, the filter banner is a strip of yellow tape */
+/* Goal chips are strips of tape (torn ends, a little askew) rather than boxes: see-through paper when idle, yellow
+   when picked, pink when something waits */
+html[data-theme='zine'] .bitl-goal-chip {
+  border: 0;
+  border-radius: 0;
+  padding-inline: 1rem;
+  background-color: rgb(244 239 226 / 0.14);
+  font-weight: 700;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 5px) 25%, 100% 50%, calc(100% - 5px) 75%, 100% 100%, 0 100%, 5px 75%, 0 50%, 5px 25%);
+  transform: rotate(-1deg);
+}
+html[data-theme='zine'] .bitl-goal-chip:nth-child(even) {
+  transform: rotate(0.8deg);
+}
+html[data-theme='zine'] .bitl-goal-chip:hover {
+  background-color: rgb(244 239 226 / 0.24);
+}
+html[data-theme='zine'] .bitl-goal-chip[class*='border-red-300'] {
+  background-color: var(--bitl-pink);
+  color: #111;
+}
+html[data-theme='zine'] .bitl-goal-chip:is([aria-pressed='true'], [class*='border-red-300']) {
+  --color-zinc-100: rgb(0 0 0 / 0.15);
+  --color-zinc-500: #111;
+  --color-zinc-800: rgb(0 0 0 / 0.15);
+  --color-red-400: #111;
+  --color-red-600: #111;
+}
+html[data-theme='zine'] .bitl-goal-chip[aria-pressed='true'] {
+  background-color: var(--bitl-yellow);
+  color: #111;
+}
+html[data-theme='zine'] .bitl-goal-add {
+  border: 2px dashed var(--bitl-ink);
+  font-weight: 700;
+}
+html[data-theme='zine'] .bitl-goal-add:hover {
+  background-color: var(--bitl-yellow);
+  color: #111;
+}
+html[data-theme='zine'] :is(.bitl-goal-pop, .bitl-goal-dialog) {
+  border: 3px solid var(--bitl-ink);
+  background-color: var(--bitl-card-bg);
+  box-shadow: 8px 8px 0 var(--bitl-pink);
+}
+html[data-theme='zine'] .bitl-goal-pop :is(button, label):hover {
+  background-color: var(--bitl-yellow);
+  color: #111;
+}
+html[data-theme='zine'] .bitl-goal-dialog > h2 {
+  display: inline-block;
+  padding: 0.05em 0.5em 0.15em;
+  background: var(--bitl-yellow);
+  color: #111;
+  font-weight: 900;
+  transform: rotate(-1deg);
+}
+html[data-theme='zine'] .bitl-goal-filter {
+  border: 3px solid #111;
+  background-color: var(--bitl-yellow);
+  color: #111;
+  box-shadow: 4px 4px 0 var(--bitl-pink);
+  font-weight: 600;
+  --color-sky-300: #111;
+  --color-sky-700: #111;
+}
+html[data-theme='zine'] .bitl-goal-filter :is(button, [role='group']) {
+  border: 0;
+  border-radius: 999px;
+  background-color: transparent;
+  color: #111;
+  font-weight: 700;
+}
+html[data-theme='zine'] .bitl-goal-filter > span > button {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+html[data-theme='zine'] .bitl-goal-filter [role='group'] {
+  background-color: rgb(0 0 0 / 0.1);
+}
+html[data-theme='zine'] .bitl-goal-filter button:is(:hover, [aria-pressed='true']) {
+  border-radius: 999px;
+  background-color: #111;
+  color: var(--bitl-yellow);
+  text-decoration: none;
+}
+html[data-theme='zine'] .bitl-goal-badge {
+  border: 0;
+  background: var(--bitl-cyan);
+  color: #111;
+  font-weight: 700;
+}
+html[data-theme='zine'] :is(.bitl-btn-primary, .bitl-goal-save) {
+  border: 2px solid var(--bitl-ink);
+}
+html[data-theme='zine'] .bitl-goal-save {
+  background-color: #111;
+  color: var(--bitl-yellow);
+  font-weight: 800;
+  box-shadow: 3px 3px 0 var(--bitl-yellow);
+}
+
+/* Zine: focus view — the conversation as a zine spread. Each prompt is a sticker slapped on at a slight angle
+   (yellow and cyan in turn), each answer a pasted-in sheet with a hard shadow, headings marked with a highlighter */
+html[data-theme='zine'] .bitl-focus {
+  background-color: var(--bitl-bg);
+  background-image: radial-gradient(var(--bitl-dots) 1.6px, transparent 2px);
+  background-size: 14px 14px;
+}
+html[data-theme='zine'] .bitl-focus-header {
+  border-bottom: 4px solid var(--bitl-ink);
+  background-color: var(--bitl-bg);
+}
+html[data-theme='zine'] .bitl-focus-header h2 {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.05em 0.5em 0.15em;
+  background: var(--bitl-yellow);
+  color: #111;
+  font-size: 1.3rem;
+  font-weight: 900;
+  transform: rotate(-1deg);
+}
+html[data-theme='zine'] .bitl-focus-header p {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.1em 0.55em;
+  background: var(--bitl-ink);
+  color: var(--bitl-paper);
+  font-family: var(--bitl-display);
+  letter-spacing: 0.06em;
+  transform: rotate(1deg);
+}
+/* Close: a round pink sticker, straight and still (hover only draws an ink ring) */
+html[data-theme='zine'] .bitl-focus-close {
+  border-radius: 999px;
+  padding-inline: 1rem;
+  background-color: var(--bitl-pink);
+  color: #111;
+  font-weight: 800;
+}
+html[data-theme='zine'] .bitl-focus-close:hover {
+  background-color: var(--bitl-pink);
+  color: #111;
+  box-shadow: inset 0 0 0 2px #111;
+}
+html[data-theme='zine'] .bitl-focus-turns > li + li {
+  border-top: 3px dashed var(--color-zinc-600);
+}
+html[data-theme='zine'] .bitl-focus-prompt {
+  border: 3px solid #111;
+  background-color: var(--bitl-yellow);
+  color: #111;
+  font-weight: 600;
+  box-shadow: 5px 5px 0 var(--bitl-pink);
+  transform: rotate(0.6deg);
+}
+html[data-theme='zine'] .bitl-focus-turns > li:nth-child(even) .bitl-focus-prompt {
+  background-color: var(--bitl-cyan);
+  transform: rotate(-0.6deg);
+}
+html[data-theme='zine'] .bitl-focus-report {
+  border-left: 4px solid var(--bitl-pink);
+}
+html[data-theme='zine'] .bitl-focus-result {
+  padding: 1.1rem 1.3rem;
+  border: 3px solid var(--bitl-ink);
+  background-color: var(--bitl-card-bg);
+  box-shadow: 7px 7px 0 var(--bitl-cyan);
+}
+html[data-theme='zine'] .bitl-focus-turns > li:nth-child(even) .bitl-focus-result {
+  box-shadow: 7px 7px 0 var(--bitl-yellow);
+}
+html[data-theme='zine'] .bitl-focus-result :is(h1, h2, h3, h4) {
+  width: fit-content;
+  font-weight: 900;
+  background: linear-gradient(transparent 58%, rgb(255 45 135 / 0.55) 58%);
+}
+html[data-theme='zine'] .bitl-focus-result strong {
+  background: linear-gradient(transparent 62%, rgb(255 230 0 / 0.4) 62%);
+}
+html[data-theme='zine'] .bitl-focus-result pre {
+  border: 2px solid var(--bitl-ink);
+}
+
+/* Zine, light — cream newsprint, white stickers with ink borders; the colored shadows get an ink outline so yellow
+   still reads on paper. Text accents are darkened for contrast */
+html[data-theme='zine'][data-mode='light'] {
+  --bitl-bg: #f4efe2;
+  --bitl-bg-glass: rgb(244 239 226 / 0.94);
+  --bitl-ink: #111;
+  --bitl-paper: #f4efe2;
+  --bitl-dots: rgb(17 17 17 / 0.09);
+  --bitl-card-bg: #fff;
+  --bitl-hard: #111;
+  --color-zinc-50: #fbf8ef;
+  --color-zinc-100: #f1ecdf;
+  --color-zinc-200: #e0dacb;
+  --color-zinc-300: #c7c0ae;
+  --color-zinc-400: #8a8475;
+  --color-zinc-500: #5e594f;
+  --color-zinc-600: #48443c;
+  --color-zinc-700: #34312b;
+  --color-zinc-800: #23211d;
+  --color-zinc-900: #151412;
+  --color-zinc-950: #0b0a09;
+  --color-emerald-300: #f5e94a;
+  --color-emerald-400: #e6cf00;
+  --color-emerald-500: #a39800;
+  --color-emerald-600: #6e6600;
+  --color-amber-300: #6ae8f5;
+  --color-amber-400: #00c2dc;
+  --color-amber-500: #0097ad;
+  --color-amber-600: #00788c;
+  --color-red-300: #ff7ab0;
+  --color-red-400: #ff2d87;
+  --color-red-500: #e0106f;
+  --color-red-600: #b80a59;
+  --color-sky-300: #6ae8f5;
+  --color-sky-400: #00c2dc;
+  --color-sky-500: #0097ad;
+  --color-sky-600: #00788c;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-col-title {
+  background: #111;
+  color: var(--bitl-paper);
+}
+html[data-theme='zine'][data-mode='light'] section:nth-child(2n) > .bitl-col-title {
+  background: #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-card {
+  box-shadow: 6px 6px 0 #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-card[data-status='running'] {
+  box-shadow: 6px 6px 0 var(--bitl-yellow), 6px 6px 0 3px #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-card[data-status='needs_review'] {
+  box-shadow: 6px 6px 0 var(--bitl-cyan), 6px 6px 0 3px #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-card:is([data-status='ended'], [data-status='stale'], [data-status='idle']) {
+  border-color: #111;
+  box-shadow: 5px 5px 0 #9a958a;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-card:is([data-status='waiting_for_you'], [data-status='error']) {
+  box-shadow: 6px 6px 0 #111;
+  --color-zinc-50: #fff5f9;
+  --color-zinc-100: #ffe3ef;
+  --color-zinc-200: #111;
+  --color-zinc-300: #2a0a18;
+  --color-zinc-400: #2a0a18;
+  --color-zinc-500: #2a0a18;
+  --color-zinc-600: #111;
+  --color-zinc-700: #111;
+  --color-zinc-800: #111;
+  --color-zinc-900: #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-ended {
+  border-top-color: #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-focus-result {
+  box-shadow: 7px 7px 0 var(--bitl-cyan), 7px 7px 0 3px #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-focus-turns > li:nth-child(even) .bitl-focus-result {
+  box-shadow: 7px 7px 0 var(--bitl-yellow), 7px 7px 0 3px #111;
+}
+html[data-theme='zine'][data-mode='light'] .bitl-goal-chip {
+  background-color: rgb(17 17 17 / 0.09);
+}
+html[data-theme='zine'][data-mode='light'] .bitl-goal-chip:hover {
+  background-color: rgb(17 17 17 / 0.16);
+}
+html[data-theme='zine'][data-mode='light'] .bitl-goal-chip:is([aria-pressed='true'], [class*='border-red-300']) {
+  background-color: var(--bitl-yellow);
+}
+html[data-theme='zine'][data-mode='light'] .bitl-goal-chip[class*='border-red-300']:not([aria-pressed='true']) {
+  background-color: var(--bitl-pink);
+}
+html[data-theme='zine'][data-mode='light'] .bitl-focus-header h2 {
+  box-shadow: 4px 4px 0 #111;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  html[data-theme='zine'] .bitl-card.pulse-ring,
   html:not([data-theme]) .bitl-card::before,
   html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-card::before, .bitl-hud-lost, .bitl-wordmark) {
     animation: none;
