@@ -145,11 +145,11 @@ export class SqlStore implements SessionStore {
     return rows.map((r) => JSON.parse(r.data as string) as StoredSession);
   }
 
-  async listTurns(accountId: string, key: string, limit = 50): Promise<StoredTurn[]> {
+  async listTurns(accountId: string, key: string, limit = 50, before?: string): Promise<StoredTurn[]> {
     const { rows } = await this.db.query(
       `SELECT session_key, turn_id, prompt, result, status, started_at, ended_at, tool_count
-       FROM turns WHERE account_id = ? AND session_key = ? ORDER BY started_at DESC, id DESC LIMIT ?`,
-      [accountId, key, limit],
+       FROM turns WHERE account_id = ? AND session_key = ?${before ? ' AND started_at < ?' : ''} ORDER BY started_at DESC, id DESC LIMIT ?`,
+      before ? [accountId, key, before, limit] : [accountId, key, limit],
     );
     const opt = (v: unknown) => (v === null || v === undefined ? undefined : (v as string));
     return rows.map((r: Row) => ({

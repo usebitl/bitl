@@ -415,9 +415,51 @@ html[data-theme='zine'] {
   --color-violet-400: #c8b8ff;
   --color-violet-500: #a891ff;
 }
+/* The halftone dots sit on a fixed layer behind the page (body goes see-through; <html> keeps the color), so they can
+   move by transform alone — cheap enough to run for as long as an agent works */
 html[data-theme='zine'] body {
+  background: transparent;
+}
+html[data-theme='zine'] body::before {
+  content: '';
+  position: fixed;
+  inset: -24px;
+  z-index: -1;
+  pointer-events: none;
   background-image: radial-gradient(var(--bitl-dots) 1.6px, transparent 2px);
   background-size: 14px 14px;
+}
+/* While an agent runs (Board sets <html data-running>): the dots breathe and drift, and the header's bottom line turns
+   into yellow/ink tape running sideways */
+@keyframes bitl-zine-breathe {
+  0%, 100% { transform: none; }
+  50% { transform: translate(-6px, -4px) scale(1.1); }
+}
+html[data-theme='zine'][data-running] {
+  --bitl-dots: rgb(244 239 226 / 0.13);
+}
+html[data-theme='zine'][data-mode='light'][data-running] {
+  --bitl-dots: rgb(17 17 17 / 0.14);
+}
+html[data-theme='zine'][data-running] body::before {
+  animation: bitl-zine-breathe 2.4s ease-in-out infinite;
+}
+@keyframes bitl-zine-tape {
+  to { background-position: 48px 0; }
+}
+html[data-theme='zine'][data-running] .bitl-header {
+  border-bottom-color: transparent;
+}
+html[data-theme='zine'][data-running] .bitl-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--bitl-yellow) 0 24px, var(--bitl-ink) 24px 48px);
+  animation: bitl-zine-tape 0.6s linear infinite;
 }
 html[data-theme='zine'] :is(.rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl) {
   border-radius: 0;
@@ -572,7 +614,7 @@ html[data-theme='zine'] .bitl-btn-primary:hover {
   box-shadow: 4px 4px 0 var(--bitl-yellow);
   transform: translate(-1px, -1px);
 }
-/* A hand-underlined word that gets a highlighter stroke on hover, not another box */
+/* A hand-underlined word that turns into a yellow label on hover (the whole word, so dark-mode text stays readable) */
 html[data-theme='zine'] .bitl-ack {
   font-weight: 700;
   text-decoration: underline;
@@ -580,7 +622,7 @@ html[data-theme='zine'] .bitl-ack {
   text-underline-offset: 3px;
 }
 html[data-theme='zine'] .bitl-ack:hover {
-  background: linear-gradient(transparent 45%, var(--bitl-yellow) 45%, var(--bitl-yellow) 90%, transparent 90%);
+  background: var(--bitl-yellow);
   color: #111;
   text-decoration: none;
 }
@@ -744,6 +786,19 @@ html[data-theme='zine'] .bitl-focus-close:hover {
   color: #111;
   box-shadow: inset 0 0 0 2px #111;
 }
+/* Shortcut keycaps: little stickers with a hard pink shadow */
+html[data-theme='zine'] .bitl-focus-keys {
+  color: var(--bitl-ink);
+  font-weight: 700;
+}
+html[data-theme='zine'] .bitl-focus-keys kbd {
+  border: 2px solid var(--bitl-ink);
+  border-radius: 0;
+  background: var(--bitl-card-bg);
+  color: var(--bitl-ink);
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--bitl-pink);
+}
 html[data-theme='zine'] .bitl-focus-turns > li + li {
   border-top: 3px dashed var(--color-zinc-600);
 }
@@ -882,6 +937,8 @@ html[data-theme='zine'][data-mode='light'] .bitl-focus-header h2 {
 @media (prefers-reduced-motion: reduce) {
   html[data-theme='zine'] .bitl-card.pulse-ring,
   html[data-theme='zine'] .bitl-card::before,
+  html[data-theme='zine'] body::before,
+  html[data-theme='zine'] .bitl-header::after,
   html:not([data-theme]) .bitl-card::before,
   html[data-theme='cyberpunk'] .bitl-card::before,
   html[data-theme='cyberpunk'] :is(.bitl-card h3, .bitl-hud-lost, .bitl-wordmark) {

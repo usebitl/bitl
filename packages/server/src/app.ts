@@ -127,15 +127,32 @@ export function createApp({ store, webDist, account, push, approvals, goals, ent
     ),
   );
 
+  /**
+   * One page of a card's turns, newest first. A card continued from earlier sessions (`--resume` that started a new
+   * session) includes their turns too (each carries its own session key, which its content is sealed with)
+   */
+  const TURN_PAGE = 12;
+  async function turnPage(accountId: string, key: string, session: StoredSession, limit: number, before?: string) {
+    const keys = [key, ...(session.resumedFrom ?? [])];
+    const all = (await Promise.all(keys.map((k) => store.listTurns(accountId, k, limit + 1, before)))).flat();
+    all.sort((a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0));
+    return { turns: all.slice(0, limit), hasMore: all.length > limit };
+  }
+
   app.get('/api/sessions/:key', async (c) => {
     const [accountId, key] = [c.var.accountId, c.req.param('key')];
     const session = await store.getSession(accountId, key);
     if (!session) return c.json({ error: 'not found' }, 404);
-    const turns = await store.listTurns(accountId, key);
-    // Continued from earlier sessions (`--resume` that started a new session): their turns follow (each carries its own
-    // session key, which its content is sealed with)
-    for (const prev of session.resumedFrom ?? []) turns.push(...(await store.listTurns(accountId, prev)));
-    return c.json({ session, turns });
+    return c.json({ session, ...(await turnPage(accountId, key, session, TURN_PAGE)) });
+  });
+
+  // Older turns, a page at a time (the detail and focus view load more as you scroll down)
+  app.get('/api/sessions/:key/turns', async (c) => {
+    const [accountId, key] = [c.var.accountId, c.req.param('key')];
+    const session = await store.getSession(accountId, key);
+    if (!session) return c.json({ error: 'not found' }, 404);
+    const limit = Math.min(Math.max(Number(c.req.query('limit')) || TURN_PAGE, 1), 100);
+    return c.json(await turnPage(accountId, key, session, limit, c.req.query('before') || undefined));
   });
 
   const found = (c: Context<Env>, s: StoredSession | undefined) => (s ? c.json(s) : c.json({ error: 'not found' }, 404));

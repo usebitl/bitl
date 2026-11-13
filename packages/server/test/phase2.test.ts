@@ -71,7 +71,7 @@ describe('PATCH /api/sessions/:key', () => {
 });
 
 describe('session detail', () => {
-  it('carries the session and its turns only — the event log stays on the server, signals only', async () => {
+  it('carries the session and its turns only (and whether older turns are left) — the event log stays on the server, signals only', async () => {
     await hook('UserPromptSubmit', { prompt: '테스트 고쳐줘' }, '2026-09-26T00:00:01Z');
     await hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } }, '2026-09-26T00:00:02Z');
     await hook('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } }, '2026-09-26T00:00:03Z');
@@ -80,7 +80,7 @@ describe('session detail', () => {
     await hook('Stop', { last_assistant_message: '완료' }, '2026-09-26T00:00:06Z');
 
     const detail = (await (await app.request('/api/sessions/claude-code:s1')).json()) as object;
-    expect(Object.keys(detail).sort()).toEqual(['session', 'turns']);
+    expect(Object.keys(detail).sort()).toEqual(['hasMore', 'session', 'turns']);
     const log = await eventLog(store, A, 'claude-code:s1');
     expect(log.map((e) => e.nativeType)).toEqual(['Stop', 'PreCompact', 'PostToolUseFailure', 'PostToolUse', 'PreToolUse', 'UserPromptSubmit']);
     for (const e of log) expect(Object.keys(e.data)).toEqual(['signal']);

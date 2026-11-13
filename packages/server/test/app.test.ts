@@ -164,6 +164,30 @@ describe('session API', () => {
     expect(((await (await app.request('/api/sessions')).json()) as StoredSession[]).find((s) => s.key === 'claude-code:old')?.replacedBy).toBe('claude-code:new');
   });
 
+  it('turns come a page at a time, newest first, and the next pages run on into the resumed session', async () => {
+    const at = (n: number) => `2026-09-26T00:${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}Z`;
+    const prompt = (sid: string, text: string, n: number) => ({
+      ...rec('UserPromptSubmit', { prompt: text }, at(n)),
+      payload: { ...rec('x').payload, hook_event_name: 'UserPromptSubmit', prompt: text, session_id: sid },
+    });
+    for (let i = 0; i < 3; i++) await post(prompt('old', `old ${i}`, i));
+    for (let i = 0; i < 14; i++) {
+      const w = await wire(prompt('new', `new ${i}`, 10 + i));
+      await postJson({ ...w, signal: { ...w.signal, resumedFrom: 'old' } });
+    }
+
+    const first = (await (await app.request('/api/sessions/claude-code:new')).json()) as { turns: StoredTurn[]; hasMore: boolean };
+    expect(first.turns).toHaveLength(12);
+    expect(first.hasMore).toBe(true);
+    expect((await viewTurns(first.turns)).map((t) => t.prompt).slice(0, 2)).toEqual(['new 13', 'new 12']);
+
+    const before = encodeURIComponent(first.turns.at(-1)!.startedAt);
+    const next = (await (await app.request(`/api/sessions/claude-code:new/turns?before=${before}`)).json()) as { turns: StoredTurn[]; hasMore: boolean };
+    expect((await viewTurns(next.turns)).map((t) => t.prompt)).toEqual(['new 1', 'new 0', 'old 2', 'old 1', 'old 0']);
+    expect(next.hasMore).toBe(false);
+    expect((await app.request('/api/sessions/nope/turns')).status).toBe(404);
+  });
+
   it('unknown session gets 404', async () => {
     expect((await app.request('/api/sessions/nope')).status).toBe(404);
   });

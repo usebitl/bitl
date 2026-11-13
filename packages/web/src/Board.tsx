@@ -189,6 +189,13 @@ export const MENU_ICON = 'size-[18px] text-zinc-500 dark:text-zinc-400';
 export function Board({ keys, enabled = true, readonly = false, badge, actions, banners, lockedNotice, top, menu, overlays, detail, cardExtra }: BoardProps) {
   useBoardTheme();
   const { sessions, approvals, goals, connection } = useSessions(enabled ? keys : undefined);
+  // While any agent is running, <html data-running> lets a theme animate the whole board (Zine: header tape, dots)
+  const anyRunning = sessions.some((s) => s.status === 'running');
+  useEffect(() => {
+    const html = document.documentElement;
+    html.toggleAttribute('data-running', anyRunning);
+    return () => html.removeAttribute('data-running');
+  }, [anyRunning]);
   // Goals: selecting one shows only its cards. Dialog: create (preselect: cards to include from the start) or edit
   const [goalId, setGoalId] = useState<string | null>(null);
   const [goalDialog, setGoalDialog] = useState<{ goal?: Goal; preselect?: string[] } | null>(null);
@@ -219,6 +226,16 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
   const connIssue = useConnectionIssue(connection);
   const [selectedKey, select] = useSelectedKey();
   const [mode, toggleMode] = useDetailMode();
+  // A card opened straight in the focus view (its ⤢ button or a double-click): the detail opens it, then clears this
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusOpened = useCallback(() => setFocusKey(null), []);
+  const openFocus = useCallback(
+    (key: string) => {
+      select(key);
+      setFocusKey(key);
+    },
+    [select],
+  );
 
   const byColumn = useMemo(() => {
     const map: Record<BoardColumn, Session[]> = { attention: [], running: [], review: [], rest: [] };
@@ -373,6 +390,7 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
                   goals={canEdit || goals.length ? goals : undefined}
                   onNewGoal={canEdit ? () => setGoalDialog({ preselect: [s.key] }) : undefined}
                   extra={cardExtra?.(s)}
+                  onFocus={() => openFocus(s.key)}
                 />
               ))}
               {byColumn[col.id].length === 0 && (
@@ -444,6 +462,8 @@ export function Board({ keys, enabled = true, readonly = false, badge, actions, 
           keys={keys}
           canEdit={canEdit}
           extension={detail}
+          openFocus={focusKey === selected.key}
+          onFocusOpened={focusOpened}
         />
       )}
     </div>

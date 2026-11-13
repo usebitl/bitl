@@ -5,10 +5,11 @@ import { ApprovalBox } from './ApprovalBox';
 import type { Approval } from './approvals';
 import { displayTitle, type Session, type Turn } from '@bitl/shared/session';
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { fetchDetail, patchSession, type SessionDetail as Detail } from './api';
+import { fetchDetail, fetchTurns, patchSession, type SessionDetail as Detail } from './api';
 import { agentReport, localDateTime, localTime, promptParts, promptText, resumeCommand, SOURCE_LABEL } from './format';
 import { DeleteConfirm } from './SessionCard';
 import { writeEntry } from './entries';
+import { FocusViewIcon } from './Icons';
 import { EntryComposer, EntryList, useEntries } from './EntryViews';
 
 /**
@@ -25,6 +26,14 @@ export const SIDE_PANEL_GUTTER = 'sm:pr-[35.5rem] 2xl:pr-[43.5rem]'; // panel wi
 
 /** UI strings. Named msg because this file often uses t for turns */
 const msg = t;
+
+/** A fresh first page, with the older turns already paged in kept after it */
+function keepOlder(prev: Detail, next: Detail): Detail {
+  const oldest = next.turns.at(-1)?.startedAt;
+  if (!oldest || prev.turns.length <= next.turns.length) return next;
+  const older = prev.turns.filter((t) => t.startedAt < oldest);
+  return older.length ? { ...next, turns: [...next.turns, ...older], hasMore: prev.hasMore } : next;
+}
 
 function Time({ iso, now }: { iso: string; now: number }) {
   return (
@@ -96,13 +105,39 @@ export function PromptBody({ text, className = '' }: { text: string; className?:
   );
 }
 
+/** Paging: loads the next (older) turns when this comes near the bottom of the scroll; also a button, in case it doesn't */
+interface More {
+  hasMore: boolean;
+  onMore: () => void;
+}
+function MoreTurns({ hasMore, onMore, count }: More & { count: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Re-observed after every page (count), so a sentinel still in view asks for the next one
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && onMore(), { rootMargin: '0px 0px 400px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, onMore, count]);
+  if (!hasMore) return null;
+  return (
+    <div ref={ref} className="py-4 text-center">
+      <button type="button" onClick={onMore} className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+        {msg('detail.moreTurns')}
+      </button>
+    </div>
+  );
+}
+
 /**
  * activity: what the session is doing right now (same as the card). Shown under the newest turn (turns are newest first)
  * while it has no response yet, so the panel isn't blank between the prompt and the answer
  */
-function TurnList({ turns, now, activity, turnAction }: { turns: Turn[]; now: number; activity?: string; turnAction?: (turn: Turn) => ReactNode }) {
+function TurnList({ turns, now, activity, turnAction, more }: { turns: Turn[]; now: number; activity?: string; turnAction?: (turn: Turn) => ReactNode; more: More }) {
   if (turns.length === 0) return <p className="text-sm text-zinc-400">{msg('detail.noTurns')}</p>;
   return (
+    <>
     <ol className="space-y-4">
       {turns.map((t, i) => (
         <li key={`${t.startedAt}-${i}`} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
@@ -126,18 +161,13 @@ function TurnList({ turns, now, activity, turnAction }: { turns: Turn[]; now: nu
         </li>
       ))}
     </ol>
+    <MoreTurns {...more} count={turns.length} />
+    </>
   );
 }
 
-/** Reading mode: a page with lines of text, the last one short */
-function ReaderIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="1.75" width="10" height="12.5" rx="1.75" />
-      <path d="M5.75 5.25h4.5M5.75 8h4.5M5.75 10.75h2.5" />
-    </svg>
-  );
-}
+const KEYCAP =
+  'rounded border border-b-2 border-zinc-300 bg-zinc-50 px-1.5 font-sans text-[11px] leading-[18px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
 
 /**
  * Focus view: the whole conversation, newest turn at the top (like the turns tab), over the entire window — nothing else on screen.
@@ -151,6 +181,8 @@ function FocusView({
   activity,
   turnAction,
   onClose,
+  total,
+  more,
 }: {
   title: string;
   turns: Turn[];
@@ -158,6 +190,9 @@ function FocusView({
   activity?: string;
   turnAction?: (turn: Turn) => ReactNode;
   onClose: () => void;
+  /** How many turns the card has (more than loaded while older pages are left) */
+  total: number;
+  more: More;
 }) {
   // Capture phase on window runs before the detail's own Escape listener, so stopping here keeps the detail open
   useEffect(() => {
@@ -175,19 +210,48 @@ function FocusView({
     };
   }, [onClose]);
 
+  // Ctrl+↓ / Ctrl+↑ (⌘ on a Mac) glide to the next / previous turn: the turn's top lands at the top of the view.
+  // Paging still works as usual — reaching the bottom loads the next turns
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+      const box = scroller.current;
+      if (!box) return;
+      e.preventDefault();
+      const top = box.getBoundingClientRect().top;
+      const offsets = [...box.querySelectorAll<HTMLElement>(':scope > ol > li')].map((li) => li.getBoundingClientRect().top - top);
+      // 2px of slack, so the turn already sitting at the top counts as the current one
+      const target = e.key === 'ArrowDown' ? offsets.find((o) => o > 2) : offsets.filter((o) => o < -2).at(-1);
+      if (target === undefined) return;
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      box.scrollBy({ top: target, behavior: smooth ? 'smooth' : 'auto' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+
   return (
     <div role="dialog" aria-modal="true" aria-label={title} className="bitl-focus fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950">
       <header className="bitl-focus-header flex items-center gap-3 border-b border-zinc-200 px-5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800">
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-semibold">{title}</h2>
-          <p className="text-xs text-zinc-500">{msg('detail.tabTurns', { n: turns.length })}</p>
+          <p className="text-xs text-zinc-500">{msg('detail.tabTurns', { n: total })}</p>
         </div>
+        {/* The shortcut as keycaps: [Ctrl][↑][↓] jump turns (the full sentence on hover) */}
+        <span className="bitl-focus-keys hidden items-center gap-1 text-xs text-zinc-400 md:flex" title={msg('detail.focusKeysTitle', { k: mac ? '⌘' : 'Ctrl+' })}>
+          <kbd className={KEYCAP}>{mac ? '⌘' : 'Ctrl'}</kbd>
+          <kbd className={KEYCAP}>↑</kbd>
+          <kbd className={KEYCAP}>↓</kbd>
+          <span className="ml-1">{msg('detail.focusKeys')}</span>
+        </span>
         <button type="button" onClick={onClose} className="bitl-focus-close rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           {msg('detail.focusClose')}
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5">
-        <ol className="bitl-focus-turns mx-auto max-w-3xl divide-y divide-zinc-200 pb-[max(1rem,env(safe-area-inset-bottom))] dark:divide-zinc-800">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5">
+        <ol className="bitl-focus-turns mx-auto max-w-4xl divide-y divide-zinc-200 pb-[max(1rem,env(safe-area-inset-bottom))] dark:divide-zinc-800">
           {turns.length === 0 && <p className="py-8 text-center text-sm text-zinc-400">{msg('detail.noTurns')}</p>}
           {turns.map((t, i) => (
             <li key={`${t.startedAt}-${i}`} className="space-y-4 py-8">
@@ -225,6 +289,7 @@ function FocusView({
             </li>
           ))}
         </ol>
+        <MoreTurns {...more} count={turns.length} />
       </div>
     </div>
   );
@@ -275,14 +340,22 @@ interface Props {
   /** Can write entries (has keys, not read-only) */
   canEdit?: boolean;
   extension?: DetailExtension;
+  /** Opened from a card's focus button (or a double-click): go straight to the focus view, then report it's done */
+  openFocus?: boolean;
+  onFocusOpened?: () => void;
 }
 
-export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys, canEdit = false, extension }: Props) {
+export function SessionDetail({ session, now, mode, attentionCount, onToggleMode, onClose, approval, keys, canEdit = false, extension, openFocus, onFocusOpened }: Props) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState('turns');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [focus, setFocus] = useState(false);
   const closeFocus = useCallback(() => setFocus(false), []);
+  useEffect(() => {
+    if (!openFocus) return;
+    setFocus(true);
+    onFocusOpened?.();
+  }, [openFocus, onFocusOpened]);
   const wide = mode === 'wide';
   const { entries } = useEntries({ session: session.key });
   // Kept with each entry, so it still says where it was written after the card is gone
@@ -291,7 +364,8 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   // reload the detail when the session gets new events
   useEffect(() => {
     let alive = true;
-    fetchDetail(session.key).then((d) => alive && setDetail(d));
+    // A refresh brings the newest page again: keep the older pages already loaded below it
+    fetchDetail(session.key).then((d) => alive && setDetail((prev) => (d && prev ? keepOlder(prev, d) : d)));
     return () => {
       alive = false;
     };
@@ -318,6 +392,28 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
 
   const resume = resumeCommand(session);
   const turns = detail?.turns ?? [];
+  const hasMore = detail?.hasMore ?? false;
+  const loading = useRef(false);
+  const onMore = useCallback(() => {
+    const last = turns.at(-1);
+    if (!hasMore || !last || loading.current) return;
+    loading.current = true;
+    fetchTurns(session.key, last.startedAt)
+      .then((page) => {
+        if (!page) return;
+        setDetail((prev) => {
+          if (!prev) return prev;
+          const oldest = prev.turns.at(-1)?.startedAt;
+          return { ...prev, turns: [...prev.turns, ...page.turns.filter((t) => !oldest || t.startedAt < oldest)], hasMore: page.hasMore };
+        });
+      })
+      .finally(() => {
+        loading.current = false;
+      });
+  }, [turns, hasMore, session.key]);
+  const more = { hasMore, onMore };
+  // The card's own count while older pages are still on the server
+  const total = hasMore ? Math.max(turns.length, session.turnCount) : turns.length;
   // same rule as the card: what it's doing now while running or waiting
   const activity = session.status === 'running' || session.status === 'waiting_for_you' ? session.currentActivity : undefined;
   // number of other sessions waiting for you
@@ -325,7 +421,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   const useAddOns = extension?.useAddOns ?? noAddOns;
   const addOns = useAddOns({ session, turns, now, canEdit, approval });
   const tabs: { id: string; label: string; content?: ReactNode }[] = [
-    { id: 'turns', label: msg('detail.tabTurns', { n: turns.length }) },
+    { id: 'turns', label: msg('detail.tabTurns', { n: total }) },
     { id: 'entries', label: msg('detail.tabEntries', { n: entries.length }) },
   ];
   for (const extra of addOns.tabs ?? []) {
@@ -426,7 +522,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
           aria-label={msg('detail.focus')}
           className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         >
-          <ReaderIcon />
+          <FocusViewIcon />
           <span className="hidden sm:inline">{msg('detail.focusShort')}</span>
         </button>
       </nav>
@@ -449,7 +545,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
             ) : !detail ? (
               <p className="text-sm text-zinc-400">{msg('detail.loading')}</p>
             ) : (
-              <TurnList turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} />
+              <TurnList turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} more={more} />
             )}
             </div>
           </section>
@@ -477,7 +573,7 @@ export function SessionDetail({ session, now, mode, attentionCount, onToggleMode
   );
 
   const focusView = focus && (
-    <FocusView title={displayTitle(session, titleLabels())} turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} onClose={closeFocus} />
+    <FocusView title={displayTitle(session, titleLabels())} turns={turns} now={now} activity={activity} turnAction={addOns.turnAction} onClose={closeFocus} total={total} more={more} />
   );
 
   if (wide) {

@@ -7,6 +7,7 @@ import { type Approval, answeredHere } from './approvals';
 import { agoPhrase, elapsed, localDateTime, minutesSince, promptText, SOURCE_LABEL, WAITING_LABEL } from './format';
 import { CardGoalMenu, GoalBadges } from './GoalViews';
 import { t, titleLabels } from './i18n';
+import { FocusViewIcon } from './Icons';
 import type { Goal } from './goals';
 
 const SOURCE_STYLE: Record<Session['source'], string> = {
@@ -158,6 +159,7 @@ export function SessionCard({
   goals,
   onNewGoal,
   extra,
+  onFocus,
 }: {
   s: Session;
   now: number;
@@ -172,6 +174,8 @@ export function SessionCard({
   onNewGoal?: () => void;
   /** Added below the card's text (Board's cardExtra) */
   extra?: ReactNode;
+  /** Open straight in the focus view (the ⤢ button, or a double-click on the card) */
+  onFocus?: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const urgent = s.status === 'waiting_for_you' && minutesSince(s.statusAt, now) >= 5;
@@ -209,8 +213,19 @@ export function SessionCard({
         ✕
       </button>
       {goals && onNewGoal && <CardGoalMenu sessionKey={s.key} goals={goals} onNewGoal={onNewGoal} />}
-      <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="mb-1.5 flex items-center gap-2 pr-12 text-xs">
+      {onFocus && (
+        <button
+          type="button"
+          onClick={onFocus}
+          title={t('card.focus')}
+          aria-label={t('card.focus')}
+          className={`absolute ${goals && onNewGoal ? 'right-14' : 'right-8'} top-3 rounded-md px-1.5 py-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-100`}
+        >
+          <FocusViewIcon className="my-0.5 size-4" />
+        </button>
+      )}
+      <button type="button" onClick={onOpen} onDoubleClick={onFocus} className="block w-full text-left">
+        <div className={`mb-1.5 flex items-center gap-2 ${onFocus ? 'pr-20' : 'pr-12'} text-xs`}>
           <span
             className={`shrink-0 rounded-md px-1.5 py-0.5 font-medium ${SOURCE_STYLE[s.source]}`}
             title={s.source === 'claude-cloud' ? t('card.cloudTitle') : undefined}

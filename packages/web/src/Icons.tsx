@@ -110,3 +110,12 @@ export const SignOutIcon = (p: P) => (
     <path d="M10 8l-4 4 4 4M6 12h10" />
   </Icon>
 );
+
+/** Focus view (the card's button and the detail's): four corners opening out — the whole conversation, full screen */
+export function FocusViewIcon({ className = 'h-4 w-4' }: P) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+    </svg>
+  );
+}

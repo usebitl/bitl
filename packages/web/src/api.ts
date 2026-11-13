@@ -16,7 +16,10 @@ import { contentKeys } from './keys';
 
 export interface SessionDetail {
   session: Session;
+  /** The newest page of turns (newest first) */
   turns: Turn[];
+  /** Older turns are left to load (fetchTurns) */
+  hasMore: boolean;
 }
 
 const path = (key: string) => `/api/sessions/${encodeURIComponent(key)}`;
@@ -31,10 +34,19 @@ async function requireKeys() {
 export async function fetchDetail(key: string): Promise<SessionDetail | null> {
   const res = await fetch(path(key));
   if (!res.ok) return null;
-  const raw = (await res.json()) as { session: StoredSession; turns: StoredTurn[] };
+  const raw = (await res.json()) as { session: StoredSession; turns: StoredTurn[]; hasMore?: boolean };
   const keys = await contentKeys();
   const [session, turns] = await Promise.all([openSession(keys, raw.session), Promise.all(raw.turns.map((t) => openTurn(keys, t)))]);
-  return { session, turns };
+  return { session, turns, hasMore: Boolean(raw.hasMore) };
+}
+
+/** The page of turns that started before `before` (newest first) — the detail loads older turns as you scroll */
+export async function fetchTurns(key: string, before: string): Promise<{ turns: Turn[]; hasMore: boolean } | null> {
+  const res = await fetch(`${path(key)}/turns?before=${encodeURIComponent(before)}`);
+  if (!res.ok) return null;
+  const raw = (await res.json()) as { turns: StoredTurn[]; hasMore?: boolean };
+  const keys = await contentKeys();
+  return { turns: await Promise.all(raw.turns.map((t) => openTurn(keys, t))), hasMore: Boolean(raw.hasMore) };
 }
 
 export async function postAction(key: string, action: 'ack'): Promise<void> {

@@ -30,7 +30,8 @@ export interface SessionStore {
   ingest(accountId: string, rec: WireRecord): Promise<StoredSession>;
   getSession(accountId: string, key: string): Promise<StoredSession | undefined>;
   listSessions(accountId: string, opts?: ListOptions): Promise<StoredSession[]>;
-  listTurns(accountId: string, key: string, limit?: number): Promise<StoredTurn[]>;
+  /** Newest first; before: only turns that started before this time (paging back) */
+  listTurns(accountId: string, key: string, limit?: number, before?: string): Promise<StoredTurn[]>;
   editSession(accountId: string, key: string, edit: SessionEdit): Promise<StoredSession | undefined>;
   acknowledge(accountId: string, key: string, now?: Date): Promise<StoredSession | undefined>;
   /** Deletes a session with all its turns and events. true if deleted */
